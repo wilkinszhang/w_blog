@@ -158,7 +158,7 @@ EXPLAIN 是分析查询语句性能的最重要工具之一，可以判断查询
 
 # 深度分⻚如何优化？
 
-深度分页指的是当查询结果集非常庞大时，用户请求的是结果集的某个较深的页面（例如，第1000页）。优化方案，使用索引优化分页，使用 WHERE 子句结合主键索引，可以显著减少扫描的行数，如WHERE id > (SELECT id FROM orders ORDER BY id LIMIT 10000, 1)
+深度分页指的是当查询结果集非常庞大时，用户请求的是结果集的某个较深的页面（例如，第1000页）。优化方案，使用索引优化分页，使**用 WHERE 子句结合主键索引，可以显著减少扫描的行数**，如WHERE id > (SELECT id FROM orders ORDER BY id LIMIT 10000, 1)
 
 # 数据冷热分离如何做？
 
@@ -184,7 +184,7 @@ redis的主从复制有同步复制和异步复制两种。同步复制通过引
 
 # Redis几种数据类型怎么实现的？
 
-reids有五种数据类型，String List Hash Set Zset。String的实现是基于SDS的，拼接字符串不会造成缓冲区溢出。List基于quicklist实现，quicklist是双层结构，内部有多个node，每个node是一个ziplist或者linkedlist。hash基于listpack或哈希表实现。set基于整数集合或哈希表实现。zset基于listpack或跳表实现。
+reids有五种数据类型，String List Hash Set Zset。String的实现是基于SDS的，拼接字符串不会造成缓冲区溢出。List基于**quicklist**实现，quicklist是双层结构，内部有多个node，每个node是一个ziplist或者linkedlist。hash基于listpack或哈希表实现。set基于整数集合或哈希表实现。zset基于listpack或跳表实现。
 
 # 本地缓存和分布式缓存有什么区别？如何选择？
 
