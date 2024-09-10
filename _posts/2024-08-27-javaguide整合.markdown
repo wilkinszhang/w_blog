@@ -242,14 +242,6 @@ AOF（Append Only File）持久化方式在Redis中通过将每一个写操作�
 
 通过设置随机的过期时间来分散 key 过期的时刻，或启用 Redis 4.0 引入的 lazy-free 特性，使用子线程异步释放内存，避免主线程阻塞，从而提高处理客户端请求的响应速度。
 
-# 什么是缓存穿透？
-
-数据既不在缓存也不在数据库中，没办法构建缓存数据，服务后续请求。
-
-# 什么是缓存雪崩？
-
-指在同一时刻，大量的缓存数据同时失效，导致所有的请求都直接落到数据库上，从而可能导致数据库压力过大甚至宕机的现象。
-
 # 针对缓存雪崩有哪些解决办法？
 
 采用高可用的Redis集群架构，通过限流保护后端系统，对热点缓存动态调整失效时间或设置为不失效，以确保系统的稳定运行。
@@ -266,7 +258,7 @@ short int long double float boolean char byte，八种
 
 # String str=“abc”和String str2=new String("abc")他们是一样的吗? （滴滴考过）
 
-str在堆中创建1个对象，在堆中的字符串常量池中驻留了str的引用。其实方法区中也有常量池，但是叫运行时常量池。str2会创建2个对象，并且两个都是在堆中创建的。第三种情况，如果两个代码先后执行，那么str2会创建1个对象。
+str在堆中创建1个对象，在堆中的字符串常量池中**驻留了**str的引用。其实方法区中也有常量池，但是叫运行时常量池。str2会创建2个对象，并且两个都是在堆中创建的。第三种情况，如果两个代码先后执行，那么str2会创建1个对象。
 
 # 上面提到的String是保存在堆中，什么场景是写栈的？（滴滴考过）
 
@@ -754,7 +746,7 @@ DNS解析，TCP连接，发送HTTP请求，server处理请求，并返回HTTP报
 
 # HTTP和HTTPS的区别？（科大字节考过）
 
-HTTP端口号80.HTTPS端口号443.HTTP运行在TCP上，HTTPS运行在SSL TLS上，SSL TLS运行在TCP上。
+HTTP端口号80.HTTPS端口号443.HTTP运行在TCP上，HTTPS运行在SSL TLS上，SSL TLS运行在TCP上。TLS有四个握手过程。client发起握手，提供密码套件，server回应，选择密码套件，发送证书。client验证证书有效性和证书链，client交换秘钥信息，通知开始加密通信。server返回自己的加密信息，完成握手。
 
 # TCP与UDP区别。（科大考过）
 
@@ -903,7 +895,7 @@ IoC（控制反转）是一种将对象创建和管理的控制权从程序代�
 
 # 介绍一下SpringBootApplication注解。（浪潮，滴滴考过）
 
-它封装了 @Configuration、@EnableAutoConfiguration 和 @ComponentScan 三个关键注解，大大简化了 Spring 应用的初始配置。@Configuration 标识一个类可以使用 Spring IoC 容器作为 bean 定义的源。@EnableAutoConfiguration 告诉 Spring Boot 根据添加的 jar 依赖自动配置你的 Spring 应用。最后，@ComponentScan 使 Spring 自动扫描你的项目中的所有组件（如 @Service, @Controller 等），默认情况下扫描与配置类相同的包和子包。
+它封装了 @Configuration、@EnableAutoConfiguration 和 @ComponentScan 三个关键注解，大大简化了 Spring 应用的初始配置。@Configuration 标识一个类可以使用 **Spring IoC 容器**作为 bean 定义的源。@EnableAutoConfiguration 告诉 Spring Boot 根据添加的 jar 依赖**自动配置你的 Spring 应用**。最后，@ComponentScan 使 Spring 自动扫描你的项目中的所有组件（如 @Service, @Controller 等），默认情况下扫描与配置类相同的包和子包。
 
 # 什么是Spring框架？
 
