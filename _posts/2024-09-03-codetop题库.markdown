@@ -142,7 +142,7 @@ get方法查找键值，如果存在则移动节点到链表头部moveToHead并�
 
 思路，和后面的前序遍历差不多，用栈模拟遍历过程，current变量记录当前节点，while条件是current不为空且stack非空。内层while循环当current不为空时，往栈里面丢元素。然后从栈顶取节点作为current，把current放入list结果里面，然后把current指向current的right。
 
-# 39 删除链表中的重复元素II 给定一个已排序的链表的头head，删除原始链表中所有重复数字的节点，只留下不同的数字，返回链表头结点。
+# 39 删除链表中的重复元素 II 给定一个已排序的链表的头head，删除原始链表中所有重复数字的节点，只留下不同的数字，返回链表头结点。
 
 思路，用两个指针跟踪当前节点和下一个节点。步骤，创建一个虚拟头结点dummy，next指向head。使用prev和current指针。prev指向当前非重复节点前一个节点，current指向当前节点。遍历链表，检查当前节点是否重复的， 如果重复跳过所有重复节点，跳出循环后将prev的next指向current的next，也就是prev的next指向下一个不同的节点。如果当前节点不是重复的，把prev更新为prev的next。最后更新current为current的next。返回dummy的next。
 
@@ -366,5 +366,7 @@ get方法查找键值，如果存在则移动节点到链表头部moveToHead并�
 
 思路，用哈希表和前缀和。初始化一个哈希表prefix cnt，记录每个前缀和出现次数，prefix cnt 0为1，遍历nums数组，计算从开始到当前元素的和current sum，计算所需和current sum减去k，如果这个和在哈希表中存在，那么prefix cnt current sum减去k的值就是当前元素结尾的和为k的子数组个数，同时更新哈希表，将current sum的出现次数加一。
 
+# 98 长度最小的子数组 给你一个含有n正整数的数组和一个正整数target，找出数组中满足总和大于等于target的长度最小的子数组，子数组是连续的，并返回其长度。
 
+思路，滑动窗口。用left和right，表示子数组的起始和结束位置，同时用sum记录窗口中的元素和。移动right以包含更多元素，每次移动增加nums right到sum，当窗口中元素和大于等于target时，移动left减小窗口大小，同时更新满足条件的最小长度，当right指针到达数组末尾时，结束循环。
 

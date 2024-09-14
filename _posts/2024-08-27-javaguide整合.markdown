@@ -186,7 +186,7 @@ String，List，Set，Hash，Zset有序集合，HyberLogLogs基数统计，Bitma
 
 Redis通过结合惰性删除和定期删除的策略来管理过期的数据：惰性删除在数据被访问时检查并删除过期数据，而定期删除则定时检查并清理一批过期数据，以平衡内存使用和CPU消耗。
 
-# Redis内存淘汰机制了解吗？
+# Redis内存淘汰机制了解吗？（或者问Redis怎么只存储部分热点数据？）
 
 基于最近最少使用（LRU）、最少频繁使用（LFU）和随机淘汰等方法，从而帮助维持内存使用在设定的限制之内，确保最重要的数据保持在缓存中。这对于处理如何在有限的内存空间中维持热点数据的场景，比如限制Redis缓存只存储部分热点数据，是非常关键的。
 
@@ -254,7 +254,7 @@ Java基础
 
 # Java的基本数据类型都有哪些？（滴滴考过）
 
-short int long double float boolean char byte，八种
+short，int， long， double， float， boolean， char和 byte，八种
 
 # String str=“abc”和String str2=new String("abc")他们是一样的吗? （滴滴考过）
 
