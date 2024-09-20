@@ -184,6 +184,10 @@ redis的主从复制有同步复制和异步复制两种。同步复制通过引
 
 reids有五种数据类型，String List Hash Set Zset。String的实现是基于SDS的，拼接字符串不会造成缓冲区溢出。List基于**quicklist**实现，quicklist是双层结构，内部有多个node，每个node是一个ziplist或者linkedlist。hash基于listpack或哈希表实现。set基于整数集合或哈希表实现。zset基于listpack或跳表实现。
 
+# zset的时间复杂度是什么？
+
+zset如果元素比较多，那么用跳表实现，跳表的增删查的时间复杂度都是log n，但是最坏情况下是o n，这时没有建立有效的索引。
+
 # 本地缓存和分布式缓存有什么区别？如何选择？
 
 本地缓存存储在本地应用程序或服务器内存中。而redis存储在分布式缓存系统多个 节点上。当数据量小，对实时性要求高时选用本地缓存，数据量较大，需要高并发选择redis缓存。
