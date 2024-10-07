@@ -1,0 +1,367 @@
+# 电商平台订单未支付如何实现自动关单？
+使用Scheduled注解，定时任务实现。
+使用RocketMQ，在订单创建后，把订单作为一个消息投递到mq，将延迟时间设置为30分钟，30分钟后消费者可以消费到这个消息，检查用户是否支付了这个订单。
+# 如何设计秒杀系统？
+用户<--->ng<--->风控<--->秒杀服务<--->缓存<--->数据库
+                            ^
+                            |
+                            |
+                            |
+                            v
+                        消息队列
+## 热点数据怎么处理？
+我们用redis做缓存比较多，可以通过改动redis sdk定位redis热key。思路是记录每个请求，定时把收集到的数据上报，然后由一个统一的服务进行聚合计算。定位到热key后，要放到缓存中，并要写入到jvm内存一份，并设置一个过期时间，注意写入jvm内存的数据不能过多。
+## 静态资源怎么处理？
+如商品图片，css，js使用cdn。
+## 怎么实现高可用？
+集群化。避免单点风险。redis异步复制，redis哨兵。
+限流。使用阿里Sentinel限制接口请求频率。
+流量削峰。使用mq避免后端服务被打垮。
+降级。优先保证核心业务，对一些服务进行降级。
+## 怎么保证一致性？怎么保证不超卖？
+采用下单扣减库存方案，采用lua脚本对redis上秒杀商品的库存进行原子操作。
+余额扣减直接用数据库自带的排他锁select 某某 for update。
+## 性能测试
+使用jmeter进行压力测试。
+
+# 如何设计一个动态线程池？
+动态线程池无需重启服务即可实时调整核心配置参数，提供动态指定corePoolSize，maxPoolSize和workQueue的队列长度，参数应该放在比如ZooKeeper中间件中。
+## 怎么获取线程池一些指标数据？
+通过getPoolSize等方法。
+## 如何监控线程池？
+使用springboot acturator监控应用运行状态，自定义EndPoint类，手动暴露线程池相关指标信息。
+## 动态线程池的开源实现有哪些？
+hippo4j
+
+# 如何设计一个支持10万pqs的会员系统？
+比如用户买了一张火车票，此时要给他发放酒店红包，需要查询艺龙酒店会员卡号，将红包挂载到账号。
+## es高可用方案？
+采用双中心主备集群架构，合理设置es线程池大小，避免cpu彪高，每个节点合理分配shard。
+## 会员redis缓存方案
+本来会员系统不做缓存的，因为es性能很好，另外有的业务要求会员的绑定关系实时一致，要是有一个接口没有更新缓存，就会导致脏数据，如用户在app看不到微信订单，微信和app不能交叉营销。但是选择做缓存是因为今年有机票盲盒活动带来的瞬时qps太高，有风险。
+### es近实时机制导致redis不一致
+一个用户注销了自己的账号，这时要更新es，删除app账号和微信账号绑定关系，es一秒后才能查询到更新后的数据，在一秒内，有个请求查询用户会员关系，先到redis查，没有，到es查，查到了，但是是旧数据，然后会把旧数据更新到redis。一秒后，es中会员数据更新，但redis还是旧数据，导致不一致。
+
+# 怎么设计购物车系统？
+购物车系统功能，加购，购物车列表页，结算下单。
+包括sku，数量加购时间和勾选状态属性。
+存在未登录的暂存购物车和登录后的用户购物车，考虑合并问题。
+暂存购物车保存在客户端cookie，用户购物车保存在服务端，可以用MySQL或redis。
+
+# 如何在不停机情况下更新系统？
+服务分为有状态服务和无状态服务。
+无状态服务如处理查询逻辑的search planner，特点是每个请求完毕后资源会释放，不同请求之间没有依赖，可以通过水平扩展实现扩容。
+有状态服务比如闲鱼搜索引擎，本身服务是无状态的，但是引擎内部保存了用于处理索引分区，增量进度的状态，通过新版本镜像新建引擎，然后做新旧引擎全量数据同步，增量数据同时向新旧引擎发送，新引擎上线，逐步扩大承接流量的比例。
+
+# 有了解过MySQL容灾吗？
+
+## **容灾的基本概念**
+首先，容灾是指在数据库系统出现故障时，能够快速恢复数据和服务的能力。MySQL容灾通常包括**数据备份**和**故障转移**两个主要部分。
+
+## **数据备份**
+数据备份是容灾的基础。常见的备份方式有**全量备份**、**增量备份**和**差异备份**。全量备份是定期对整个数据库进行备份，增量备份只备份自上次备份以来发生变化的数据，差异备份则是备份自上次全量备份以来发生变化的数据。
+
+## **故障转移**
+故障转移是指在主数据库出现故障时，能够自动或手动将服务切换到备用数据库。常见的故障转移方案有**主从复制**和**主主复制**。主从复制中，一个主数据库负责写操作，多个从数据库负责读操作；主主复制中，两个数据库都可以进行读写操作，但需要处理好数据一致性问题。
+
+## **高可用性架构**
+为了提高MySQL的容灾能力，通常会采用**高可用性架构**，如**MySQLCluster**。这些架构通过多节点同步复制数据，确保在单个节点故障时，其他节点可以继续提供服务。
+
+## **监控与报警**
+容灾系统还需要有完善的**监控与报警机制**，及时发现数据库的异常情况，并触发相应的容灾流程。常见的监控工具包括**Zabbix**、**Prometheus**等。
+
+# qps10000访问1个key和qps10000访问10000个key有什么区别？
+## 1. 访问单个key的性能
+- 当**QPS 10000**访问一个key时，Redis的性能通常是非常高的。因为Redis是**单线程**的，它能够高效地处理单个key的读写操作。这种情况下，Redis的**内存访问**和**数据结构操作**都非常快，延迟很低。
+## 2. 访问多个key的性能
+- 当**QPS 10000**访问一万个key时，情况复杂。首先，Redis需要处理更多的**网络IO**和**内存访问**。每个key的访问都会增加Redis的负担，尤其是在高并发的情况下，可能会导致**网络瓶颈**或**内存带宽瓶颈**。
+- 此外，如果这些key分布在不同的**槽**或**节点**上，Redis还需要进行**集群间的通信**，这会进一步增加延迟。
+## 3. 缓存策略的影响
+
+- 在访问多个key的情况下，合理的**缓存策略**非常重要。例如，可以使用**批量操作**（如`MGET`）来减少网络IO的开销。
+- 另外，如果这些key之间有**关联性**，可以考虑将它们**合并**到一个数据结构中（如**Hash**或**Set**），这样可以减少key的数量，提高访问效率。
+
+# 讲一讲MySQL 服务器怎么分析连接情况？有一大堆连接怎么处理？
+首先我们可以通过mysql命令来分析当前的连接情况，用show processlist命令查看当前所有连接和状态。当发现有大量连接时，我们要优化查询语句，减少查询时间，或者适当增加连接池大小，并设置合理的连接超时时间。
+
+# 购物车里面的物品，有满减和优惠劵的时候价格会不同，如何去自动适配用满减还是折扣扣减还是跨店铺合并减，用什么设计模式？
+使用策略模式解决，策略模式是一种行为设计模式，在这个场景中，我们可以定义不同的优惠策略，比如满减，折扣，跨店铺合并减等，然后运行时根据用户购物车内容自动选择最合适的策略。
+## 定义策略接口，这个接口包含一个计算最终价格的方法。
+```java
+public interface DiscountStrategy {
+   double calculateFinalPrice(List<Item> cartItems);
+}
+```
+## 实现具体策略。
+```java
+public class FullReductionStrategy implements DiscountStrategy {
+   @Override
+   public double calculateFinalPrice(List<Item> cartItems) {
+       //实现满减逻辑
+       return finalPrice;
+   }
+}
+
+public class DiscountStrategyImpl implements DiscountStrategy {
+   @Override
+   public double calculateFinalPrice(List<Item> cartItems) {
+       //实现折扣逻辑
+       return finalPrice;
+   }
+}
+
+public class CrossStoreReductionStrategy implements DiscountStrategy {
+   @Override
+   public double calculateFinalPrice(List<Item> cartItems) {
+       //实现跨店铺合并减逻辑
+       return finalPrice;
+   }
+}
+```
+## 策略上下文，负责在运行时选择合适的策略。
+```java
+public class DiscountContext {
+   private DiscountStrategy strategy;
+
+   public void setStrategy(DiscountStrategy strategy) {
+       this.strategy = strategy;
+   }
+
+   public double applyDiscount(List<Item> cartItems) {
+       return strategy.calculateFinalPrice(cartItems);
+   }
+}
+```
+## 自动适配策略，根据用户购物车内容自动选择最合适的策略，比如我们可以根据购物车商品数量，总价，店铺数量决定选择哪个策略。
+```java
+public class DiscountService {
+   public double getBestDiscount(List<Item> cartItems) {
+       DiscountContext context = new DiscountContext();
+
+       //根据购物车内容选择最合适的策略
+       if (isEligibleForFullReduction(cartItems)) {
+           context.setStrategy(new FullReductionStrategy());
+       } else if (isEligibleForDiscount(cartItems)) {
+           context.setStrategy(new DiscountStrategyImpl());
+       } else if (isEligibleForCrossStoreReduction(cartItems)) {
+           context.setStrategy(new CrossStoreReductionStrategy());
+       }
+
+       return context.applyDiscount(cartItems);
+   }
+
+   private boolean isEligibleForFullReduction(List<Item> cartItems) {
+       //判断是否满足满减条件
+       return true;
+   }
+
+   private boolean isEligibleForDiscount(List<Item> cartItems) {
+       //判断是否满足折扣条件
+       return true;
+   }
+
+   private boolean isEligibleForCrossStoreReduction(List<Item> cartItems) {
+       //判断是否满足跨店铺合并减条件
+       return true;
+   }
+}
+``````java
+public class DiscountService {
+   public double getBestDiscount(List<Item> cartItems) {
+       DiscountContext context = new DiscountContext();
+
+       //根据购物车内容选择最合适的策略
+       if (isEligibleForFullReduction(cartItems)) {
+           context.setStrategy(new FullReductionStrategy());
+       } else if (isEligibleForDiscount(cartItems)) {
+           context.setStrategy(new DiscountStrategyImpl());
+       } else if (isEligibleForCrossStoreReduction(cartItems)) {
+           context.setStrategy(new CrossStoreReductionStrategy());
+       }
+
+       return context.applyDiscount(cartItems);
+   }
+
+   private boolean isEligibleForFullReduction(List<Item> cartItems) {
+       //判断是否满足满减条件
+       return true;
+   }
+
+   private boolean isEligibleForDiscount(List<Item> cartItems) {
+       //判断是否满足折扣条件
+       return true;
+   }
+
+   private boolean isEligibleForCrossStoreReduction(List<Item> cartItems) {
+       //判断是否满足跨店铺合并减条件
+       return true;
+   }
+}
+```
+# 三级缓存怎么解决循环依赖？
+比如有两个bean a和b，a依赖b，b依赖a，这就形成了循环依赖。三级缓存包括singletonObjects，earlySingletonObjects，singletonFactories。当spring检测到循环依赖时，从singletonFactories获取bean的工厂对象，创建早期暴露的bean，并放入earlySingletonObjects，从而打破循环依赖。
+# 对于微博的评论楼中楼功能，怎么设计数据库？
+## 表结构设计
+我们要设计一个评论表存储所有评论信息，包含以下字段：
+comment id，评论的唯一标识符。
+parent comment id，父评论的id。
+content，评论的内容。
+user id，评论者的用户id。
+create time，评论的创建时间。
+## 层级关系处理
+为了处理楼中楼关系，我们可以用递归查询或者预计算路径的方式。
+### mysql递归查询，使用with recursive，获取某个评论所有子评论。
+### 在评论表中增加path字段，存储从根评论到当前评论的路径。
+## 性能优化
+在parent comment id上建立索引。
+## 扩展考虑
+应对扩展，如点赞，回复提醒，预留extra data的json格式的字段，存储点赞数和是否已读。
+```sql
+CREATE TABLE comments (
+   comment_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+   parent_comment_id BIGINT,
+   content TEXT NOT NULL,
+   user_id BIGINT NOT NULL,
+   create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   path VARCHAR(255),
+   extra_data JSON
+);
+
+CREATE INDEX idx_parent_comment_id ON comments(parent_comment_id);
+CREATE INDEX idx_path ON comments(path);
+```
+# redis 删除100万个具有相同前缀的键，他是怎么做的？
+## 使用scan命令，遍历所有符合条件的键，用del删除，scan match "prefix:*"找到符合前缀的键。
+
+# 如果一个线程的分布式锁过期了，另外一个线程拿到了怎么办？
+## 避免冲突的策略
+使用可重入锁，允许同一个线程多次获取同一个锁，避免锁过期冲突。
+续租机制，在锁快要过期时，持有锁的线程可以自动延长锁的持有时间。
+## 异常处理
+如果锁过期，另一个线程获得了锁，原持有锁的线程在完成任务后，可能会尝试释放锁，为了避免这种情况，在释放前检查当前线程是否仍然是锁的持有者。
+# git fetch和pull的区别？
+git fetch只是将远程仓库最新提交下载到本地仓库，但不会自动合并或修改当前目录的内容。
+git pull是将远程仓库的最新提交下载到本地仓库，并会自动合并到当前分支，他是获取并合并的操作。
+# 如果让你设计一个分布式锁，你怎么弄？
+## 实现方式
+使用数据库的唯一索引或行锁实现。
+基于redis的setnx命令实现。
+## 锁的粒度
+粗粒度锁适合竞争不激烈场景
+细粒度锁可以提高并发性能
+## 锁的过期时间
+固定过期时间和动态过期时间。
+
+# 大文件小内存数据排序问题，两两归并比较慢怎么优化？多路归并的时间复杂度是多少？
+用多路归并排序，是一种外部排序的实践。
+假设k个块，每个块包含n除以k个元素。
+## 多路归并流程
+分割，对每个分割出来的小文件进行内存内排序，可以用快速排序，堆排序。
+归并，用多路归并将已排序的块合并成单一的排序文件。
+## 归并的时间复杂度
+初始化，将每个块的第一个元素加入到最小堆中，涉及k次插入操作，每次插入时间复杂度为O log k，初始化时间复杂度是O k log k。
+归并，我们要合并总共n个元素，对于每个被合并的元素，执行以下操作：
+从堆中取出最小元素，这个操作是O 1.
+将这个元素所在的块的下一个元素插入到堆中，操作是O log k。
+因此，每合并一个元素复杂度为O log k，总共n个元素，整个归并时间复杂度是O n log k。
+
+# 高并发卖5000张优惠券的设计？
+## 需求拆解和选型
+配置券，涉及到券模版的创建，券模版有效期和库存消息。
+发放券，涉及券记录的创建，过期时间和状态。
+选择MySQL+redis+RocketMQ。
+## 表结构
+券模版字段：
+meta_no，模版号。
+type，优惠券类型，如折扣券，现金券等。
+valid_start_time，有效开始时间。
+valid_end_time，有效结束时间。
+status，券的状态，包括激活，停用。
+stock，券的库存。
+receive_rule，领取规则，定义了用户什么条件可以领取。
+consume_rule，消费规则，如最低消费金额。
+券记录字段：
+coupon_no，券号。
+coupon_meta_no，关联到券模版号。
+receive_out_no，领取流水号，如何时领取的唯一标识。
+consume_out_no，消费流水号，记录在哪一笔交易中被使用。
+
+# java方法区OOM怎么排查？
+使用jvisualvm监控jvm内存使用情况，方法区oom一般是类加载过多，比如用反射或动态代理，或者类加载器没有被正确回收，或者jvm的metaspace大小配置过小。
+
+# 为什么kafka比RocketMQ吞吐量高？
+## 存储机制
+kafka采用日志文件存储，非常适合顺序写。RocketMQ使用文件系统，在高吞吐量情况下，日志性能更强。
+## 分区机制
+kafka每个主题可以有多个分区，每个分区可以分布在不同服务器上。
+## 网络模型
+kafka采用零拷贝，减少网络传播中拷贝次数。
+## 消费模型
+kafka是基于拉取的，消费者根据自己消费能力拉取消息，适合高吞吐量场景，RocketMQ是基于推送的。
+
+# 讲一讲一个活动有数据存在redis和MySQL中，现在活动下线了，先删除缓存还是先删除MySQL？
+如果数据一致性要求高，考虑先删除MySQL再删除redis，配合缓存预热或者加锁，因为可能出现缓存击穿的情况。
+如果对数据一致性要求不高，考虑先删除redis再删除MySQL，配合延迟双删策略，因为有新的请求进来，可能会从MySQL中读到旧数据，并重新写入缓存，我们要删除缓存后，等待一段时间再删除一次缓存。
+
+# 1000个人中有一位新冠患者，如何用最少的试管和检测次数，找到这个患者？
+因为2的9次方小于1000,1000小于2的10次方，我们需要10位二进制编号人.用10个试管,试管1收集编号中最低位为1的所有人的样本,试管2收集编号中第二位为1的所有人的样本,试管10收集编号中第10位为1的所有人的样本.通过将10个试管的结果从最高位到最低位组合成一个二进制数,可以定位到患者编号.
+
+# 订单表每天新增100万数据,分库分表方案怎么设计?
+一天100万数据，一年有3亿数据，做一些空间上的预留，假设有5亿数据，我们可以按照16个分库，每个库32个表规划，一共512张表，每个表存放100万数据量，选择oid作为分片键，采用一致性hash算法进行路由。
+## 分表的依据
+用oid作为分片键，首先oid对16取余，看映射到哪个库，然后oid除以16，再对32取余，看映射到哪个表。
+## 给出uid，要查总金额
+采用基因法，确保uid对应的oid路由到同一个库或表，在生成oid时，把uid拼接到oid中。
+## 一致性哈希算法
+哈希算法分配，如果节点数量发生变化，必须迁移改变了映射关系的数据。一致性哈希算法不对节点数量取模，而是对2的32次方取模，将存储节点和数据都映射到一个首尾相连的哈希环上。一致性哈希算法存在不均匀问题，一个节点可能有很多数据，要用虚拟节点保证均衡。
+
+# 1亿个任务，CPU密集型，一个开9个线程，一个开20个线程，实际的物理线程都是8的服务器，这两个服务器哪个执行的快？
+9个线程的更快，对于cpu密集的任务，线程数量应该和核心数量接近，否则会发生过多的线程调度。
+## 如果是io密集型呢？
+20个线程的更快，因为他允许应用程序在等待io时进行更多的处理。
+
+# 一个用户同时登录两台设备，怎么让另一台用户退出登录？
+每个用户登录后会生成一个唯一的会话标识符，存储在cookie或token中。
+## 并发登录检测
+当用户在第二台设备登录时，系统要检测这时一个新的登录请求，先检查是否已经有一个活跃的会话，如果存在标记为过期。为新的设备生成一个新的会话标识符。
+## 通知旧设备
+如果设备支持，通过websocket或pushnotification发送通知，告诉被下线。前端应用可以定期检查会话状态，如果会话无效，提示用户重新登陆。
+
+# qps和tps区别？
+## 定义
+qps是每秒查询率，比如一个api每秒能处理多少个请求，tps是每秒事务处理量，比如一个电商系统每秒能完成多少次下单。
+## 应用场景
+qps衡量读频繁场景，如搜索引擎，api服务。tps衡量写频繁场景，如电商、金融。
+
+# 怎么设计一个数据库连接池？
+## 连接池的结构
+连接池是一个连接管理器，负责创建，管理和回收数据库连接，可以用**线程安全**的集合ConcurrentLinkedQueue来存储这些连接。
+## 连接池的初始化
+启动时，预先创建一定数量的数据库连接，放入连接池中。可以设置最小连接数，最大连接数。
+## 连接的获取与释放
+当应用程序需要一个连接时，从连接池获取，如果没有可用，则选择**等待**或者是**创建新的连接**。使用完后，应用程序应将连接**释放回连接池**，而不是直接关闭它。
+
+# 注册中心的底层实现是什么？
+## 服务发现机制
+服务在启动时会向注册中心注册自己的信息，如IP地址，端口号等。客户端要调用某个服务时，会向注册中心查询该服务的消息，然后调用。如像Eureka，提供了RESTfulapi来实现服务的注册和法线。
+## 数据存储
+注册中心要存储服务的信息，通常用**分布式存储**保证高可用性和一致性。比如Eureka采用内存存储。在分布式系统中，数据的存储和同步是个关键问题，通常涉及到**CAP定理**的权衡。
+## 健康检查
+如果某个服务不可用， 注册中心将其从服务列表中移除，检查的方式可以是**心跳机制**，也可以是**http，tcp请求**。
+## 负载均衡
+客户端在获取服务列表后，可以根据某种策略选择一个服务实例进行调用，比如随机或轮询等。
+
+# redis缓存穿透问题在数据库分库分表场景下怎么解决？
+## 缓存空值
+当查询一个不存在的数据时，我们可以将这个空结果也缓存起来。要设置一个合理的过期时间，避免缓存中累积过多空值。
+## 布隆过滤器
+在缓存层之前，加一层布隆过滤器。
+## 分库分表策略
+根据业务需求合理设计分库分表策略，比如根据用户id哈希值决定数据存储到哪个库和表中，这样，即使某个库或表的数据被穿透，不会影响整个数据库集群。同时我们可以用**读写分离**和**主从复制**提高可用性。
+
+# 1亿数据只有1G内存，怎么去重？
+## bitmap
+对每条数据用1bit标记是否存在即可，1亿bit约等于12MB，bitmap适合值域较小，数据密集场景。
+## 布隆过滤器
+当值域较大时，使用布隆过滤器，对于数据a，用k个哈希函数，计算出k个哈希值，在bitmap中将这k个位置都标记为1，表示这个数据存在，适合不严格去重场景，当判断存在时，数据可能不在集合中。
+

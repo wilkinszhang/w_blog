@@ -148,7 +148,7 @@ String，List，Set，Hash，Zset有序集合，HyberLogLogs基数统计，Bitma
 
 1.使用数据库的ORDER BY语句：这是最直接的方式，适用于数据量较小、需求简单的场景。例如，可以通过SQL的ORDER BY关键字对数据进行排序。这种方法的好处是简单易行，不需要额外的技术栈，但缺点是在数据量大或业务复杂时，对数据库的性能消耗较大，可能导致响应时间延长。
 
-2.使用Redis的Sorted Set：Sorted Set是Redis中一种支持按分数排序元素的数据结构，非常适合处理排行榜场景。通过Sorted Set，你可以轻松地进行元素的增加、删除、更新，并能快速获取排行榜的上位元素或者某个用户的排名和分数。使用Redis还可以处理高并发场景，保持高性能的同时确保数据的实时性。
+2.使用Redis的Sorted Set：Sorted Set是Redis中一种支持按分数排序元素的数据结构，非常适合处理排行榜场景。通过Sorted Set，你可以轻松地进行元素的增加、删除、更新，并能快速获取排行榜的上位元素或者某个用户的排名和分数。使用Redis还可以处理高并发场景，保持高性能的同时确保数据的实时性。sorted set常见的命令有zadd,zrange和zrank.
 
 # 使用Set实现抽奖系统需要用到什么命令？
 
@@ -278,6 +278,18 @@ HashMap是非线程安全，允许null键；而Hashtable是线程安全的，不
 
 可通过位运算（n-1）&hash代替mod计算索引，效率更高。扩容会对哈希表的长度扩展为2倍，而新的数组位置的计算仍然是hash&(n-1)，而n-1的二进制表示就是高位多了个1，这时看hash在高位对应的值，如果为0则元素的位置不变，如果为1则数组的位置在扩容之后的那一部分，因此扩容后比较均匀， 但是hash的均匀情况取决于hashCode方法和扰动函数。
 
+# 线程的生命周期和状态？（美团考过）
+
+新建、就绪、阻塞、等待、定时等待、终止。
+
+当一个线程对象被创建但没有调用start方法时，处于新建状态。
+当调用start方法后，线程进入就绪状态，运行时间取决于线程调度器。
+当线程视图获取锁但失败时，进入阻塞态。
+线程可以通过调用wait方法进入等待态，直到其他线程调用notify方法唤醒它。
+调用sleep(long millis)方法时，类似于等待态，线程在指定时间后自动醒来。
+当线程执行完成或因异常退出时，进入终止态，线程生命周期结束。
+线程状态转换可以通过**状态转换图**表示。
+
 # 什么是字节码？采用字节码的好处是什么？
 
 JVM可以理解的代码就是字节码，解决了传统解释性语言执行效率低的问题，同时保留了解释性语言可移植的特点。
@@ -318,7 +330,7 @@ Byte、Short、IntegerLong这四种包装类默认创建了数值【-128,217】�
 
 # 自动装箱与拆箱了解吗？原理是什么？
 
-装箱时将基本类型用他们对应的引用类型包装起来。拆箱是将包装类型转换为基本类型。自动拆箱可引发NPE问题。比如一个包装类型Integer是null，那么他去执行intValue会报NPE异常。装箱原理是valueOf方法，拆箱原理是intValue方法。
+装箱时将基本类型用他们对应的引用类型包装起来，发生在编译阶段。拆箱是将包装类型转换为基本类型。自动拆箱可引发NPE问题。比如一个包装类型Integer是null，那么他去执行intValue会报NPE异常。装箱原理是valueOf方法，拆箱原理是intValue方法。
 
 # 为什么浮点数有精度丢失的风险？
 
@@ -541,10 +553,6 @@ JDK1.7的通过使用分段锁实现线程安全，每个分段是独立的哈�
 # 使用多线程可能带来什么问题？
 
 内存泄漏、死锁、线程不安全。
-
-# 线程的生命周期和状态？
-
-新建、就绪、阻塞、等待、定时等待、终止。
 
 # 什么是上下文切换？  
 
@@ -875,7 +883,7 @@ URI唯一标识一个资源，URL可以用来标识一个资源，而且还指�
 
 FIFO，LRU，最佳页面置换算法。
 
-常用框架
+常用框架 spring
 
 # 谈谈自己对AOP的理解。（滴滴考过）
 
@@ -898,6 +906,28 @@ IoC（控制反转）是一种将对象创建和管理的控制权从程序代�
 # 什么是Spring框架？
 
 是一个开源的Java开发框架，它通过提供控制反转（IoC）和面向切面编程（AOP）等核心功能，帮助开发人员提高开发效率。
+
+# 注入Bean的方式有哪些？你用的是什么？
+构造函数注入，setter注入，以及注解注入，spring推荐使用构造函数注入。
+
+# Spring管理事务的方式有几种？
+
+编程式事务，通过使用 TransactionTemplate 或 TransactionManager 在代码中手动管理事务；以及声明式事务，更常用且推荐的方法，通常通过在 XML 配置文件中配置或使用基于注解的方式（如 @Transactional），利用 AOP 实现。
+
+# Spring事务中有哪些事务传播行为？
+
+PROPAGATION_REQUIRED（加入当前事务或**创建新事务**）、PROPAGATION_REQUIRES_NEW（总是创建新事务并挂起当前事务）、PROPAGATION_NESTED（嵌套事务或等同于 REQUIRED）、PROPAGATION_MANDATORY（必须运行在事务中）、PROPAGATION_SUPPORTS（在事务中则加入，否则非事务执行）、PROPAGATION_NOT_SUPPORTED（总是非事务执行并挂起当前事务）、PROPAGATION_NEVER（必须非事务执行，存在事务则抛出异常），这些行为用于解决不同业务方法间的事务互动问题。PROPAGATION是传播的意思。
+
+# Spring事务的隔离级别有几种？
+
+ISOLATION_DEFAULT（使用数据库默认隔离级别）、ISOLATION_READ_UNCOMMITTED（未提交读，可能导致脏读、幻读和不可重复读）、ISOLATION_READ_COMMITTED（已提交读，可防止脏读但幻读和不可重复读可能发生）、ISOLATION_REPEATABLE_READ（可重复读，可防止脏读和不可重复读但幻读可能发生）、ISOLATION_SERIALIZABLE（可串行化，防止脏读、不可重复读和幻读，但性能影响最大）。
+
+# Transactional（RollbackFor=Exception.class）注解了解吗？
+
+这个注解表示如果在方法执行过程中抛出任何类型的 Exception（包括运行时异常和非运行时异常），则会触发事务的回滚，保证数据一致性，这样的配置使得事务处理更为灵活且能够应对更广泛的异常情况。
+
+# spring循环依赖你了解吗？
+循环依赖比如两个bean之间相互持有对方的引用，spring用三级缓存解决这个问题，在SpringBoot 2.6版本解决了循环依赖问题。
 
 # Spring包含的模块有哪些？
 
@@ -967,22 +997,6 @@ Spring MVC 的核心组件包括 DispatcherServlet（中央处理器）、Handle
 
 推荐使用 @ControllerAdvice 和 @ExceptionHandler 注解来实现统一的异常处理，这允许你在全局或特定的控制器中捕获并处理异常。
 
-# Spring管理事务的方式有几种？
-
-编程式事务，通过使用 TransactionTemplate 或 TransactionManager 在代码中手动管理事务；以及声明式事务，更常用且推荐的方法，通常通过在 XML 配置文件中配置或使用基于注解的方式（如 @Transactional），利用 AOP 实现。
-
-# Spring事务中有哪些事务传播行为？
-
-PROPAGATION_REQUIRED（加入当前事务或**创建新事务**）、PROPAGATION_REQUIRES_NEW（总是创建新事务并挂起当前事务）、PROPAGATION_NESTED（嵌套事务或等同于 REQUIRED）、PROPAGATION_MANDATORY（必须运行在事务中）、PROPAGATION_SUPPORTS（在事务中则加入，否则非事务执行）、PROPAGATION_NOT_SUPPORTED（总是非事务执行并挂起当前事务）、PROPAGATION_NEVER（必须非事务执行，存在事务则抛出异常），这些行为用于解决不同业务方法间的事务互动问题。PROPAGATION是传播的意思。
-
-# Spring事务的隔离级别有几种？
-
-ISOLATION_DEFAULT（使用数据库默认隔离级别）、ISOLATION_READ_UNCOMMITTED（未提交读，可能导致脏读、幻读和不可重复读）、ISOLATION_READ_COMMITTED（已提交读，可防止脏读但幻读和不可重复读可能发生）、ISOLATION_REPEATABLE_READ（可重复读，可防止脏读和不可重复读但幻读可能发生）、ISOLATION_SERIALIZABLE（可串行化，防止脏读、不可重复读和幻读，但性能影响最大）。
-
-# Transactional（RollbackFor=Exception.class）注解了解吗？
-
-这个注解表示如果在方法执行过程中抛出任何类型的 Exception（包括运行时异常和非运行时异常），则会触发事务的回滚，保证数据一致性，这样的配置使得事务处理更为灵活且能够应对更广泛的异常情况。
-
 # 如何使用JPA 在数据库中非持久化一个字段？
 
 即不被存储到数据库中，可以通过标记该字段为 transient 或使用 @Transient 注解。
@@ -1013,6 +1027,12 @@ hasRole 和 hasAuthority 主要区别在于命名约定：hasRole 自动添加 R
 
 推荐使用 DelegatingPasswordEncoder 来管理多种密码加密方案，它允许平滑地过渡和兼容旧的加密算法。
 
+# springboot
+
+# SpringBoot的自动配置如何实现的？
+
+通过 @EnableAutoConfiguration 注解实现，引入starter组件，SpringBoot基于约定去starter组件的路径下，meta inf，spring，factories找配置类，SpringBoot使用importselector导入这些配置类，并根据@conditional注解动态加载配置类里的bean到容器。
+
 # Spring有啥缺点？
 
 在实际应用中，特别是在整合第三方库、启用高级特性（如事务管理和Spring MVC）时，Spring仍需要较多的配置工作。此外，管理这些配置及处理库间的依赖和版本冲突的问题。
@@ -1036,10 +1056,6 @@ hasRole 和 hasAuthority 主要区别在于命名约定：hasRole 自动添加 R
 # 如何在SpringBoot应用程序中使用Jetty而不是Tomcat？
 
 通过修改项目的构建配置文件来更改容器依赖。在Maven中，你需要在spring-boot-starter-web依赖中排除spring-boot-starter-tomcat，并添加spring-boot-starter-jetty作为依赖。对于Gradle构建系统，你也需执行类似操作：在spring-boot-starter-web中排除Tomcat模块并添加Jetty启动器。&lt;exclusions&gt;
-
-# SpringBoot的自动配置如何实现的？
-
-通过 @EnableAutoConfiguration 注解实现，引入starter组件，SpringBoot基于约定去starter组件的路径下，meta inf，spring，factories找配置类，SpringBoot使用importselector导入这些配置类，并根据@conditional注解动态加载配置类里的bean到容器。
 
 # 开发RestfulWeb常用的注解是什么？
 
@@ -1080,6 +1096,73 @@ hasRole 和 hasAuthority 主要区别在于命名约定：hasRole 自动添加 R
 # SpringBoot如何实现定时任务？
 
 通过在方法上使用 @Scheduled 注解来定义定时任务，同时在启动类上添加 @EnableScheduling 注解来激活这些定时任务的调度。
+
+
+系统设计
+
+什么是OAuth2.0？
+
+是一个行业标准的授权协议，主要用于授权第三方应用访问服务器资源，它通过颁发一个有时效性的令牌（Token）实现安全的授权，并广泛应用于第三方登录。
+
+认证和授权的区别是什么？
+
+认证（Authentication）主要是确认用户的身份，例如通过用户名和密码验证用户是否为其声称的人；而授权（Authorization）则是在认证之后发生，用于确定已认证的用户可以访问和操作系统中的哪些资源和功能。
+
+RBAC模型了解吗？
+
+RBAC（Role-Based Access Control）是一种基于角色的访问控制模型，通过将用户分配到具有特定权限集的角色，实现简化的权限管理和授权。
+
+什么是 cookie，作用是什么？
+
+是存储在用户本地终端的小数据文件，主要用于识别用户身份、保存登录信息、用户偏好设置和跟踪用户行为，帮助实现无状态的HTTP协议中的状态维持功能。
+
+如何在项目中使用cookie？
+
+包括创建并发送 Cookie 到客户端通过 HttpServletResponse，使用 @CookieValue 注解来获取请求中特定的 Cookie 值，以及通过 HttpServletRequest 读取所有 Cookie 值，从而有效管理用户的会话状态和偏好设置。
+
+cookie和session区别？
+
+Cookie 主要存储在客户端，用于保存用户数据和状态信息，而 Session 是存储在服务器端的，用于跟踪和管理用户的会话状态，提供了比 Cookie 更高的安全性。
+
+如何使用session-cookie方案进行身份验证？
+
+通常包括用户登录后服务器创建一个 Session 和 Session ID，将 Session ID 存储在用户的 Cookie 中，以后每次用户请求时带上这个 Cookie，服务器通过比较 Cookie 中的 Session ID 和服务器存储的 Session 数据来确认用户身份。
+
+多服务节点session-cookie方案怎么做？
+
+可采用集中式Session管理策略，如使用Redis等分布式缓存系统来统一存储和管理Session数据，从而解决单点故障问题并提高系统的伸缩性和可靠性。
+
+如果没有cookie，session还能用吗？
+
+即使客户端禁用了 Cookie，Session 仍然可以通过将 Session ID 嵌入到 URL 参数中来使用，但这种方式可能会降低安全性和用户体验。
+
+为什么cookie无法防止CSRF攻击？
+
+因为浏览器会自动携带对应域的 Cookie，攻击者可以通过伪造用户在信任站点的请求利用这一特性；而 Token（通常不存于 Cookie 中）需要在每次请求中手动附加到请求头或请求体，不会自动被浏览器携带，这样只有知道 Token 的合法用户才能发起有效请求，从而有效防止 CSRF 攻击。Cross-site request forgery
+
+什么是SSO？
+
+SSO（Single Sign-On）是一种允许用户通过一次登录认证后，无需重复登录即可访问多个相关但独立的系统的技术解决方案
+
+为什么需要定时任务？
+
+为它们允许系统自动化执行重要的周期性活动，如数据备份、订单管理、内容更新、定时发布和性能报告等，从而确保业务流程的高效。
+
+单机定时任务选型有哪些？
+
+包括使用Java的Timer类和ScheduledExecutorService类，其中Timer提供简单的任务调度但不支持并发执行，而ScheduledExecutorService提供了并发执行和更灵活的调度选项，包括支持使用Cron表达式；此外，Spring框架的@Scheduled注解提供了便捷的方式来声明定时任务，适合集成到Spring应用中。
+
+分布式系统定时任务选型有哪些？
+
+包括使用Quartz、Elastic-Job、XXL-JOB以及PowerJob等框架，这些框架支持任务在分布式系统中的高可用性、任务分片、动态任务添加、集群管理以及可视化控制，适用于处理复杂和大规模的任务调度需求。
+
+什么是JWT？
+
+JWT（JSON Web Token）是一种基于Token的认证授权机制，它通过一个包含认证信息的JSON对象，生成一个经过编码和签名的字符串，用于身份验证和信息交换，支持无状态的设计，使得服务端不需要存储Session信息，从而提高系统的可用性。
+
+如何基于JWT进行身份验证？如何防止JWT被篡改？
+
+基于JWT进行身份验证涉及服务端生成一个签名的Token返回给用户，用户后续请求时将此Token携带在HTTP请求头中，服务端通过验证Token的签名确认用户身份；为防止JWT被篡改，重要的是保证签名密钥的安全性，确保无法由外部重构有效的签名。
 
 Mybatis
 
@@ -1154,72 +1237,6 @@ XML 映射文件的各种标签如 &lt;parameterMap&gt;, &lt;resultMap&gt;, &lt;
 为什么Mybatis被称为半自动的ORM工具？
 
 因为它不像 Hibernate 那样能够完全自动根据对象关系模型处理关联查询，而是需要开发者手动编写 SQL 来实现关联对象和集合的查询，这要求开发者具备一定的 SQL 编写能力。
-
-系统设计
-
-认证和授权的区别是什么？
-
-认证（Authentication）主要是确认用户的身份，例如通过用户名和密码验证用户是否为其声称的人；而授权（Authorization）则是在认证之后发生，用于确定已认证的用户可以访问和操作系统中的哪些资源和功能。
-
-RBAC模型了解吗？
-
-RBAC（Role-Based Access Control）是一种基于角色的访问控制模型，通过将用户分配到具有特定权限集的角色，实现简化的权限管理和授权。
-
-什么是 cookie，作用是什么？
-
-是存储在用户本地终端的小数据文件，主要用于识别用户身份、保存登录信息、用户偏好设置和跟踪用户行为，帮助实现无状态的HTTP协议中的状态维持功能。
-
-如何在项目中使用cookie？
-
-包括创建并发送 Cookie 到客户端通过 HttpServletResponse，使用 @CookieValue 注解来获取请求中特定的 Cookie 值，以及通过 HttpServletRequest 读取所有 Cookie 值，从而有效管理用户的会话状态和偏好设置。
-
-cookie和session区别？
-
-Cookie 主要存储在客户端，用于保存用户数据和状态信息，而 Session 是存储在服务器端的，用于跟踪和管理用户的会话状态，提供了比 Cookie 更高的安全性。
-
-如何使用session-cookie方案进行身份验证？
-
-通常包括用户登录后服务器创建一个 Session 和 Session ID，将 Session ID 存储在用户的 Cookie 中，以后每次用户请求时带上这个 Cookie，服务器通过比较 Cookie 中的 Session ID 和服务器存储的 Session 数据来确认用户身份。
-
-多服务节点session-cookie方案怎么做？
-
-可采用集中式Session管理策略，如使用Redis等分布式缓存系统来统一存储和管理Session数据，从而解决单点故障问题并提高系统的伸缩性和可靠性。
-
-如果没有cookie，session还能用吗？
-
-即使客户端禁用了 Cookie，Session 仍然可以通过将 Session ID 嵌入到 URL 参数中来使用，但这种方式可能会降低安全性和用户体验。
-
-为什么cookie无法防止CSRF攻击？
-
-因为浏览器会自动携带对应域的 Cookie，攻击者可以通过伪造用户在信任站点的请求利用这一特性；而 Token（通常不存于 Cookie 中）需要在每次请求中手动附加到请求头或请求体，不会自动被浏览器携带，这样只有知道 Token 的合法用户才能发起有效请求，从而有效防止 CSRF 攻击。Cross-site request forgery
-
-什么是SSO？
-
-SSO（Single Sign-On）是一种允许用户通过一次登录认证后，无需重复登录即可访问多个相关但独立的系统的技术解决方案
-
-什么是OAuth2.0？
-
-是一个行业标准的授权协议，主要用于授权第三方应用访问服务器资源，它通过颁发一个有时效性的令牌（Token）实现安全的授权，并广泛应用于第三方登录。
-
-为什么需要定时任务？
-
-为它们允许系统自动化执行重要的周期性活动，如数据备份、订单管理、内容更新、定时发布和性能报告等，从而确保业务流程的高效。
-
-单机定时任务选型有哪些？
-
-包括使用Java的Timer类和ScheduledExecutorService类，其中Timer提供简单的任务调度但不支持并发执行，而ScheduledExecutorService提供了并发执行和更灵活的调度选项，包括支持使用Cron表达式；此外，Spring框架的@Scheduled注解提供了便捷的方式来声明定时任务，适合集成到Spring应用中。
-
-分布式系统定时任务选型有哪些？
-
-包括使用Quartz、Elastic-Job、XXL-JOB以及PowerJob等框架，这些框架支持任务在分布式系统中的高可用性、任务分片、动态任务添加、集群管理以及可视化控制，适用于处理复杂和大规模的任务调度需求。
-
-什么是JWT？
-
-JWT（JSON Web Token）是一种基于Token的认证授权机制，它通过一个包含认证信息的JSON对象，生成一个经过编码和签名的字符串，用于身份验证和信息交换，支持无状态的设计，使得服务端不需要存储Session信息，从而提高系统的可用性。
-
-如何基于JWT进行身份验证？如何防止JWT被篡改？
-
-基于JWT进行身份验证涉及服务端生成一个签名的Token返回给用户，用户后续请求时将此Token携带在HTTP请求头中，服务端通过验证Token的签名确认用户身份；为防止JWT被篡改，重要的是保证签名密钥的安全性，确保无法由外部重构有效的签名。
 
 分布式
 
