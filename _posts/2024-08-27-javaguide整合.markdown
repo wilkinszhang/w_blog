@@ -387,7 +387,9 @@ hashCode在Java中提供一种高效的方式确定对象存储位置，尤其�
 
 # 为什么重写equals方法必须重写hashCode方法？
 
-当重写equals方法不重写hashCode方法时，会破坏hashCode一致性约定，导致使用HashMap时出现错误的行为，因为它依赖hashCode来正确存储和检索对象。
+如果两个对象通过equals方法判断是相等的，那么他们的hashcode的值也必须相同，这是java规范中的一个基本原则。
+如果不重写hashcode，默认的方法会根据对象的内存地址生成哈希码，这会导致两个逻辑相等的对象产生不同的哈希码。
+hashmap，hashset依赖于hashcode确定对象的存储位置，如果hashcode不一致，可能导致逻辑上相等的对象被存储在不同的桶中，从而无法正确查找。
 
 # String StringBuffer StringBuilder的区别？
 

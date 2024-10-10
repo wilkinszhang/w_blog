@@ -130,7 +130,7 @@ InnoDB以页为单位管理存储空间，往MySQL插入的数据存在于页中
 
 # binlog 和 redolog 有什么区别？
 
-binlog用于数据库还原，属于数据级别的数据恢复，主从复制时binlog的应用场景。redolog属于事务级别的数据恢复。redolog是InnoDB引擎特有的，binlog是所有存储引擎共有的，binlog是MySQL的server层实现的。redolog是物理日志，记录的是某个页的修改。binlog属于逻辑日志，记录的是数据库执行的所有DDL和DML语句。
+binlog用于数据库还原，属于数据级别的数据恢复，主从复制是binlog的应用场景。redolog属于事务级别的数据恢复。**redolog**是**InnoDB引擎特有**的，binlog是所有存储引擎共有的，binlog是MySQL的server层实现的。redolog是物理日志，记录的是某个页的修改。binlog属于逻辑日志，记录的是数据库执行的所有DDL和DML语句。
 
 # undo log 如何保证事务的原⼦性？
 
@@ -221,7 +221,7 @@ reids有五种数据类型，String List Hash Set Zset。String的实现是基�
 
 # zset的时间复杂度是什么？
 
-zset如果元素比较多，那么用跳表实现，跳表的增删查的时间复杂度都是log n，但是最坏情况下是o n，这时没有建立有效的索引。
+zset如果元素比较多，那么用跳表实现，跳表的增删查的时间复杂度都是O log n，但是最坏情况下是o n，这时没有建立有效的索引。
 
 # 本地缓存和分布式缓存有什么区别？如何选择？
 
