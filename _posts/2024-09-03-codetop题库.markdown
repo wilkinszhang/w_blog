@@ -14,6 +14,45 @@
 
 get方法查找键值，如果存在则移动节点到链表头部moveToHead并返回值，否则返回-1。put方法如果健存在则更新值并移动到链表头部moveToHead，如果键不存在则插入新节点addToHead，并在超过容量时，删除尾部节点popTail。
 
+```java
+import java.util.LinkedHashMap;
+import java.util.Map;
+public class LRUCache<K, V> extends LinkedHashMap<K, V> {
+    private int capacity;
+    public LRUCache(int capacity) {
+        super(capacity, 0.75f, true);
+        this.capacity = capacity;
+    }
+    public int get(int key) {
+        return super.getOrDefault(key, -1);
+    }
+    public void put(int key, int value) {
+        super.put(key, value);
+    }
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+        // 当缓存元素个数超过容量时，移除最⽼的元素
+        return size() > capacity;
+    }
+    public static void main(String[] args) {
+        // 创建⼀个容量为3的LRU缓存
+        LRUCache<Integer, String> lruCache = new LRUCache<>(3);
+        // 添加数据
+        lruCache.put(1, "One");
+        lruCache.put(2, "Two");
+        lruCache.put(3, "Three");
+        // 此时缓存为：{1=One, 2=Two, 3=Three}
+        // 访问某个元素，使其成为最近访问的元素
+        String value = lruCache.get(2);
+        // 此时缓存为：{1=One, 3=Three, 2=Two}
+        // 添加新的数据，触发淘汰
+        lruCache.put(4, "Four");
+        // 此时缓存为：{3=Three, 2=Two, 4=Four}
+        // 元素1被淘汰，因为它是最近最少访问的元素
+    }
+}
+```
+
 # 5 K个一组翻转链表 困难题 给你链表头结点head，每k个节点一组进行翻转，请你返回修改后链表。如果节点总数不是k的整数倍，那么将最后剩余节点保持原有顺序。
 
 思路，计算链表长度，反转每k个节点的子链表，连接反转后的子链表。创建一个虚拟头结点dummy。在翻转子链表时，有groupHead，groupTail，nextGroup，preGroupTail四个重要变量，记录子链表头，子链表尾，下一组子链表头，上一组子链表尾。在翻转子链表时，要断开当前组，将groupTail的next指针设为null。
@@ -132,11 +171,11 @@ get方法查找键值，如果存在则移动节点到链表头部moveToHead并�
 
 # 35 删除链表的倒数第N个节点 给你一个链表，删除链表的倒数第n个节点，返回链表头结点
 
-思路，用双指针。先创建一个哨兵dummy，指向head，初始化fast和slow，都指向dummy，将fast向前移动n步，这样fast和slow就有n个节点的距离。同时移动fast和slow，直到fast为空，此时slow指向倒数第n减去1个节点，如果slow这时指向dummy，那么把dummy的next指向slow的下一个节点，对应要删除的是头结点的情况。
+思路，用双指针。先创建一个哨兵dummy，指向head，初始化fast和slow，都指向dummy，将fast向前移动n加一步，这样fast和slow就有n加一个节点的距离。同时移动fast和slow，直到fast为空，此时slow指向倒数第n加一个节点，直接删除slow下个节点，不需要对删除头结点的情况做额外判断。
 
 # 36 复原IP地址 给你一个只包含数字的字符串s，表示一个IP地址，返回所有可能的有效IP地址，这些地址可通过在s中插入点号完成。
 
-思路，用递归。参数有String s，start当前所在字符位置，partcount第几位，StringBuilder当前的结果，以及result列表。递归的出口是partcount为4且start到达串末尾。然后遍历当前位可以有1到3个字符，取出这个子串，判断是否有效，有效则进行递归，把StringBuilder加上当前子串。
+思路，用递归。参数有String s，start当前所在字符位置，List String curr当前的结果，以及result列表。递归的出口是curr的size为4且start到达串末尾。然后遍历当前位可以有1到3个字符，取出这个子串，判断是否有效，有效则进行递归，把StringBuilder加上当前子串。
 
 # 37 最长公共子序列 给你两个字符串text1和text2，返回这两个字符串的最长 公共子序列的长度。如果不存在公共子序列返回0。子序列可以不连续。
 
