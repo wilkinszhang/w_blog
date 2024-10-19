@@ -972,6 +972,20 @@ Spring容器是IOC核心，负责创建配置管理对象，容器通过读取�
 **依赖注入**DI是IOC的实现方式，通过DI，对象依赖关系在运行时由容器动态注入。常见的DI有构造器注入，setter注入，我用构造器比较多，因为可以确保对象创建时拥有必要的依赖。
 我的经验，比如一个电商项目，通过使用Ioc容器管理用户服务，订单服务，支付服务的依赖关系，使得代码更加模块化。
 
+# 三级缓存怎么解决循环依赖？
+
+循环依赖是指两个或多个类之间相互依赖，形成闭环。
+
+三级缓存是spring框架解决循环依赖的机制。一级缓存singletonobjects存放完全初始化好的单例bean。二级缓存earlysingletonobjects存放早期暴露的bean，也就是还未完全初始化的bean。三级缓存singletonFactories存放bean工厂。
+
+解决循环依赖的过程。创建beanA，舱室从一级缓存中获取beanA，没有则创建，将beanA放入三级缓存，并暴露引用。
+
+注入依赖，创建beanA过程中，需要注入beanB，这时尝试从一级缓存获取beanB，没有则创建。
+
+创建beanB。创建beanB过程中，需要注入beanA，从**三级缓存**中获取beanA早期引用，并放入二级缓存。
+
+完成beanB初始化，beanA继续初始化。
+
 # Bean的生命周期了解吗？
 
 包括实例化、属性赋值、初始化和销毁等阶段，开发者可以通过实现特定的接口（如**InitializingBean** 和**DisposableBean**）或使用注解（如**@PostConstruct** 和**@PreDestroy**）来干预**Bean** 的生命周期。
