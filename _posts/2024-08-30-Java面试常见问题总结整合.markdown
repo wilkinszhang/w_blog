@@ -35,14 +35,30 @@ B+ 树的特点是所有叶子节点都在同一层，并且有序。Hash索引�
 
 statement格式，每条修改数据的SQL记录在binlog中。row格式，每个数据行的变更事件记录在binlog中。以及mixed格式，两种方式混合。
 
-# 索引失效的原因有哪些？（美团，携程，腾讯云智）
-创建了联合索引，但查询条件不遵守最左匹配原则。
+# 索引失效的原因有哪些？（美团，携程，腾讯云智，京东，得物，度小满）
+创建了联合索引，但查询条件不遵守最左匹配原则。如abc查询条件使用bc。
 
 使用模糊查询，like %。
 
 查询条件部分索引没有命中。查询条件中使用or，而且or的条件中有一个列索引没有命中。
 
 查询子句中操作符左右两边数据类型不一致，发生隐式转换。
+
+操作符问题，！=和not in会导致全表扫描，无法利用索引。
+
+# 如果创建了abc的联合索引，它的索引结构是怎样的？如果条件语句是A>=0 and B=7，这时联合索引能命中吗？（得物）
+索引结构。先按照a列进行排序，然后在a列相同情况下按照b列进行排序，在b列相同情况下按照c列进行排序。
+
+能命中索引。A是范围查询，在A>0的范围内，B不是有序的，所以B不能利用索引进行索引查询。但是当A等于0时，B是有序的，这时可以利用索引进行索引查询。
+
+在遇到范围查询比如>或<时，会停下来，后面的字段不能用到联合索引。对于>=，<=，between，like的范围查询，后面的字段能用到联合索引。
+
+# 讲一下索引下推？（得物）
+索引下推允许数据库在读取数据页之前，先在索引页上进行条件过滤。
+
+当查询语句包含where条件时，MySQL会尝试将这些条件推送到索引层级进行过滤。如有个表users，有一个索引（name，age），查询语句为select * from users where name = 'john' and age>30。在没有索引下推情况下，MySQL会根据name索引找到所有name为john的记录，然后再在这些记录中过滤age>30的记录。
+
+使用索引下推后，MySQL会在索引层级直接过滤掉不符合age>30的记录。
 
 # mysql底层的存储的数据结构是什么？（美团）
 innodb引擎。b+树，每个表的主键索引和二级索引都使用b+树来存储数据。b+树是平衡树，能够高效支持范围查询和顺序访问。
@@ -53,6 +69,12 @@ myisam引擎。myisam的索引和数据是分开存储的。数据存储在单�
 
 无论是什么数据引擎，数据都是以页为单位存储的。页之间通过双向链表连接。
 
+# 唯一索引和聚集索引的区别？（百度）
+
+唯一索引。确保队列所有值唯一，不允许重复。
+
+聚集索引决定表中数据的无礼存储顺序，一个表只能有一个聚集索引，通常是主键，聚集索引叶子结点存储了实际数据行。
+
 # MySQL主键索引和普通索引谁的性能好一些？如果在10万数据下，谁的性能更好？（腾讯）
 
 主键索引是唯一且非空索引，通常是自增的整数类型，由于唯一非空所以查询速度非常快。
@@ -61,7 +83,7 @@ myisam引擎。myisam的索引和数据是分开存储的。数据存储在单�
 
 实际应用还要考虑数据分布和查询需求，比如数据分布均匀且查询需求明确，主键索引更好。如果查询涉及多个字段，需要创建复合索引，普通索引更有优势。
 
-# 以abc为例，在什么情况下，单查询b也能够命中联合索引？（腾讯）
+# 以abc为例，在什么情况下，单查询b也能够命中联合索引？（腾讯，得物）
 
 联合查询遵循最左匹配原则，如果查询条件只涉及b，那么MySQL会尝试使用索引前缀部分。如果查询条件是where b=某个值，MySQL会先找a的值，然后在a的值相同下找b的值，如果a的值与b的值唯一确定，那么查询就可以命中索引。
 
@@ -71,6 +93,15 @@ myisam引擎。myisam的索引和数据是分开存储的。数据存储在单�
 数据规模的影响。对于不同规模的数据，数据库优化器会选择不同的索引。比如，对于小规模数据，全表扫描可能比使用索引更快，因为索引查找本身也有开销。而对于大规模数据，使用索引可以显著减少查询时间，因为全表扫描代价 非常高。
 
 在实际应用中，我们可以通过explain语句查看sql查询的**执行计划**，了解数据库优化器选择了哪个索引。
+
+
+# 有一种说法, 单表数据量超过2000万, innodb性能就会降低,为什么?（京东）
+索引效率降低。innodb的B+树索引会变得更深，查询时需要更多的IO操作，导致查询性能下降。
+
+锁竞争加剧。数据量增大后，事务之间锁竞争更加激烈，可能导致性能瓶颈。
+
+维护成本增加。数据量大时，数据库维护操作比如备份，恢复和优化会更加耗时。
+
 
 # 数据库b+树索引能存多少数据？（美团）
 b+树是平衡树，每个节点可以存储多个键值对。非叶子节点存储键值和指向子节点的指针，而叶子结点存储实际数据。
@@ -137,15 +168,15 @@ employees，其中包括员工的编号（employee_id）、姓名（name）、�
  SELECT salary
 FROM employees
 WHERE employee_id = 1001;
-不会回表查询。
+不会回表查询，因为查询条件是主键索引，可以找到数据行。
 SELECT salary
 FROM employees
 WHERE name= '张三';
-会回表查询。
+会回表查询，因为name是普通索引，找到索引项后还要根据主键值找数据行。
 SELECT employee_id
 FROM employees
 WHERE name= '张三';
-不会回表查询 ，name辅助索引中有employee_id。
+不会回表查询 ，name是普通索引，找到索引项后得到他的主键值，而刚好主键值就是要查询的数据。
 
 # 什么是覆盖索引
 
@@ -262,6 +293,17 @@ show profiles和show profile命令查看执行时间。
 
 最后是正确使用索引，被频繁更新的字段应慎重建立索引，尽量联合索引而不是单列索引。
 
+# MySQL主从之间同步的速度如何提升？（百度）
+优化网络环境，增加带宽。
+
+调整MySQL配置，配置参数比如binlog cache size，sync binlog，innodb flush log at trx commit等，减少磁盘IO。
+
+使用并行复制。MySQL5.7以上支持并行复制，可以通过设置slave parallel workers启用并行复制，加快从库回放速度。
+
+减少不必要的数据同步，过滤不必要同步的库或表，使用replicate wild do table和ignore table参数实现。
+
+
+
 # 简单说⼀下⼤表优化的思路
 
 合理设计索引，针对经常使用在where，join，order by和group by的列建立索引。采
@@ -348,6 +390,62 @@ on在连接操作时先执行，where在连接操作后执行。
 
 缓存雪崩可以通过缓存数据随机过期时间解决，并通过redis哨兵实现高可用。
 
+# 为什么布隆过滤器可以解决缓存穿透的问题？（网易）
+原理。通过多个哈希函数将元素映射到位数组中，将对应位置的位设置为1。
+
+怎么解决缓存穿透。
+预先过滤。在查询缓存之前，通过布隆过滤器判断数据是否可能存在。不存在直接返回。
+```java
+import java.util.BitSet;
+import java.util.Random;
+
+public class BloomFilter {
+    private BitSet bitSet;
+    private int size;
+    private int[] hashSeeds;
+
+    public BloomFilter(int size, int[] hashSeeds) {
+        this.size = size;
+        this.bitSet = new BitSet(size);
+        this.hashSeeds = hashSeeds;
+    }
+
+    public void add(String key) {
+        for (int seed : hashSeeds) {
+            int hash = hash(key, seed);
+            bitSet.set(hash % size, true);
+        }
+    }
+
+    public boolean mightContain(String key) {
+        for (int seed : hashSeeds) {
+            int hash = hash(key, seed);
+            if (!bitSet.get(hash % size)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private int hash(String key, int seed) {
+        int hash = 0;
+        for (char c : key.toCharArray()) {
+            hash = hash * seed + c;
+        }
+        return Math.abs(hash);
+    }
+
+    public static void main(String[] args) {
+        int[] seeds = {31, 131, 1313};
+        BloomFilter bloomFilter = new BloomFilter(10000, seeds);
+        bloomFilter.add("existingKey");
+
+        System.out.println(bloomFilter.mightContain("existingKey")); // true
+        System.out.println(bloomFilter.mightContain("nonExistingKey")); // false
+    }
+}
+```
+
 # redis的主从复制有哪两个？（饿了么考过）
 
 redis的主从复制有同步复制和异步复制两种。
@@ -375,9 +473,21 @@ redis的主从复制有同步复制和异步复制两种。
   3.**增量更新**：只更新发生变化的视频热度，而不是全量更新。这样可以减少不必要的操作。
 
 
-# Redis几种数据类型怎么实现的？
+# Redis几种数据类型怎么实现的？（网易，蚂蚁）
 
 reids有五种数据类型，String List Hash Set Zset。String的实现是基于SDS的，拼接字符串不会造成缓冲区溢出。List基于**quicklist**实现，quicklist是双层结构，内部有多个node，每个node是一个ziplist或者linkedlist。hash基于listpack或哈希表实现。set基于整数集合或哈希表实现。zset基于listpack或跳表实现。
+
+# redis cluster和redis sentinel的区别是什么？（百度）
+redis cluster主要用于分布式存储，通过分片sharding将数据分布在多个节点上，，提供高可用和横向扩展能力。
+
+sentinel用于高可用管理，监控redis实例状态，自动进行故障转移fail over。
+
+数据分布。redis cluster数据分片存储在多个节点上，每个节点负责一部分数据，客户端可以直接与集群中任意节点通信，节点间通过gossip协议交换信息。
+
+redis sentinel不涉及数据分片，管理单个或多个redis实例的可用性。
+
+故障处理。redis cluster当节点故障时，集群会自动进行数据迁移和重新分片。
+redis sentinel当主节点故障时，会进行故障转移，选举新的主节点，并将从节点切换到新的主节点。
 
 # zset的时间复杂度是什么？
 
@@ -589,6 +699,13 @@ finally用于定义无论是否发生异常都会执行的代码块。
 
 乐观锁用版本号或者cas实现。
 
+# 乐观锁，悲观锁解决什么问题？流量比较大，更新比较频繁的话，一般用哪种锁合适？（蚂蚁）
+乐观锁假设在数据更新时冲突概率较低，因此读数据不加锁，在提交更新时检查数据是否被其他事务修改过，如果未修改则更新，否则更新失败。适合读多写少。
+
+悲观锁假设数据更新时冲突概率较大，因此读取数据时就加锁。悲观锁适合写多读少场景。
+
+流量大，更新频繁场景，悲观锁更合适。
+
 # cas了解吗？原理是什么？（快手，小红书）
 
 很多地方用到了cas，比如Concurrenthashmap采用cas和Synchronized保证并发安全。cas的原理是**unsafe**类中的native方法**compareandswapobjecct**实现，它调用本地代码来做，和具体操作系统和cpu密切相关。cas存在aba问题，一个值原来是a，变成了b，又变回了a，cas是检查不出来变化的，但实际上被更新了两次，aba问题通过加上版本号或者时间戳解决。
@@ -785,6 +902,15 @@ zgc采用了**颜色指针**和**读屏障**技术，能在不停止应用线程
 # 讲⼀下 CMS 垃圾收集器的四个步骤
 
 初始标记，暂停应用程序执行，标记所有GC root可达对象。并发标记，CMS与应用程序并发，通过遍历对象图标记可达对象。重新标记，标记在并发标记**未捕获**的对象。并发清除，CMS与应用程序并发运行，清理对象。
+
+# CMS垃圾回收停顿了几次？为什么？（蚂蚁）
+CMS的过程，初始标记，并发标记，重新标记，并发清除。
+
+两次。分别是初始标记和重新标记阶段。
+
+初始标记，CMS需要标记所有与GC Roots直接关联的对象，这个阶段所有应用线程会暂停。
+
+重新标记。在并发标记时，应用线程可能会修改对象图，为了确保标记准确，CMS要在并发标记后进行一次所有应用线程暂停的重新标记。
 
 # CMS和G1垃圾收集器区别？（小红书）
 内存布局。

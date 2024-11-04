@@ -6,6 +6,121 @@
 
 Broker和topic是多对多关系，一个topic可以跨越多个Broker。
 
+# rocketMQ和kafka的区别？（网易）
+设计理念。rocketMQ是阿里巴巴开源的消息中间件，是为了满足大规模电商场景需求，强调高吞吐，低延迟，高可用。Kafka是由LinkedIn开源的分布式流处理平台，是为了处理实时数据流。
+
+消息存储。rocketMQ使用文件系统存储消息，适合高可靠性场景。Kafka使用分布式日志存储消息，适合高吞吐量场景。
+
+消息顺序。rocketMQ支持严格消息顺序，在同一个队列中，消息是按照发送顺序被消费。Kafka也支持消息顺序，但需要同一个分区中保证顺序。
+
+消息消费模式。rocketMQ支持多种，如集群消费，广播消费。Kafka支持集群消费。
+
+# rocketMQ怎么保证消息的顺序性？（网易）
+消息发送顺序。生产者发送消息时，需要保证消息发送顺序，通过同步发送消息保证消息顺序。
+
+消息队列选择。rocketMQ支持将消息发送到指定的队列，保证顺序。
+
+消息消费顺序。消费者按照队列的顺序消费。
+```java
+  producer.send(msg1);
+  producer.send(msg2);
+  ```
+
+```java
+  producer.send(msg, new MessageQueueSelector() {
+      @Override
+      public MessageQueue select(List<MessageQueue> mqs, Message msg, Object arg) {
+          Integer id = (Integer) arg;
+          int index = id % mqs.size();
+          return mqs.get(index);
+      }
+  }, orderId);
+  ```
+ ```java
+  consumer.registerMessageListener(new MessageListenerOrderly() {
+      @Override
+      public ConsumeOrderlyStatus consumeMessage(List<MessageExt> msgs, ConsumeOrderlyContext context) {
+          for (MessageExt msg : msgs) {
+              // 处理消息
+          }
+          return ConsumeOrderlyStatus.SUCCESS;
+      }
+  });
+  ```
+  
+
+# rocketMQ通过什么机制确保消息消费？（网易）
+消息持久化。rocketMQ将消息持久化到磁盘，即使broker宕机也不丢失。rocketMQ用commitlog存储消息原始数据，ConsumeQueue存储消息索引信息。
+
+消息重试机制。如果消费者消费失败，rocketMQ会自动重试，直到消息被成功消费或者达到最大重试次数。
+
+消息顺序消费。
+
+消息事务。rocketMQ分为两个阶段，预提交和提交。在预提交阶段，消息被暂存，等待事务最终确认。如果事务成功，消息被提交到队列，如果失败消息回滚。
+
+消息回溯。rocketMQ允许消费者从摸个时间点重新消费消息。
+
+# 讲一讲rocketMQ支持事务消息吗？怎么做的？（网易）
+事务消息流程。
+半消息。生产者发送一个半消息到rocketMQ，这对消费者不可见。
+本地事务执行。生产者执行本地事务，如数据库操作。
+提交或回滚。
+消息确认。
+
+事务消息实现细节。
+通过两阶段提交实现。
+第一阶段，生产者发送半消息到broker，broker暂存，不对外发布。
+第二阶段，生产者根据本地事务执行结果，向broker发送提交或回滚请求。
+```java
+public class TransactionProducer {
+    public static void main(String[] args) throws MQClientException {
+        TransactionMQProducer producer = new TransactionMQProducer("TransactionProducerGroup");
+        producer.setNamesrvAddr("localhost:9876");
+
+        // 设置事务监听器
+        producer.setTransactionListener(new TransactionListener() {
+            @Override
+            public LocalTransactionState executeLocalTransaction(Message msg, Object arg) {
+                // 执行本地事务
+                try {
+                    // 模拟本地事务操作
+                    System.out.println("Executing local transaction...");
+                    Thread.sleep(1000);
+                    System.out.println("Local transaction executed successfully.");
+                    return LocalTransactionState.COMMIT_MESSAGE;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return LocalTransactionState.ROLLBACK_MESSAGE;
+                }
+            }
+
+            @Override
+            public LocalTransactionState checkLocalTransaction(MessageExt msg) {
+                // 检查本地事务状态
+                System.out.println("Checking local transaction state...");
+                return LocalTransactionState.COMMIT_MESSAGE;
+            }
+        });
+
+        producer.start();
+
+        Message msg = new Message("TransactionTopic", "TagA", "Hello RocketMQ".getBytes(StandardCharsets.UTF_8));
+        producer.sendMessageInTransaction(msg, null);
+
+        // 防止生产者立即退出
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        producer.shutdown();
+    }
+}
+```
+
+
+
 # RocketMQ发一个消息会经过哪些环节？
 
 生产者创建一条消息，查询**NameServer**获取该消息topic的路由信息，根据特定的负载均衡策略选择一个队列，进而确定将消息发送给哪个broker。broker接受生产者消息，存储到broker磁盘中，broker发送一个确认响应给生产者。生产者执行本地事务，成功则向broker发送commit，broker向消费者发送消息。消费者处理完后，向broker发送ack，确认消息被消费，broker更新消息的状态。

@@ -1,0 +1,8 @@
+# 一个表tb_clazz，两个字段（clazz:班级名，name：学生姓名），输出班级人数最多的5个班级名称。(网易)
+```sql
+select clazz,count(*) as student_cnt
+from tb_clazz
+group  by clazz
+order by student_cnt desc
+limit 5
+```
