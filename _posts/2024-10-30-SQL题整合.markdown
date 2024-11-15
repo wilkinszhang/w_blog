@@ -6,3 +6,12 @@ group  by clazz
 order by student_cnt desc
 limit 5
 ```
+
+
+# 存有姓名和分数的数据库中查排名前一百？（作业帮）
+```sql
+SELECT name, score
+FROM students
+ORDER BY score DESC
+LIMIT 100;
+```
