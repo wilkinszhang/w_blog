@@ -1,10 +1,23 @@
-redis
+# redis
+
 # bigkey的缺点是什么？
 内存占用高，bigkey也会**占用大量内存空间**，导致内存碎片增加，影响redis性能，对于bigkey的操作**可能导致redis实例阻塞**，比如del命令删除一个bigkey可能导致redis实例一段时间内无法响应其他客户端请求。
+
 # redis bigkey怎么解决？
 对bigkey进行**拆分**，如将有数万成员的hash key拆分为多个hash key，并保证每个key成员数量在合理范围。对过期数据进行**定期清理**。
+
 # 什么是热key？（作业帮）
 指某个key**被请求的频率很高**，比如一个redis实例总qps为1万，而其中一个key的qps达到了7千。
+
+# redis如何确定一个key是热key（小红书）
+监控访问频率。用redis的monitor命令或slowlog命令，监控key访问频率。
+
+自定义统计脚本。可以编写脚本定期扫描redis的key，统计每个key的访问次数，通过阈值判断是否为热点key。
+
+redis的lru机制。lru可以帮助识别最近最少使用的key。
+
+结合业务逻辑。某些key可能天生就是热点key，比如用户登录token，热门商品信息比如百亿补贴商品。
+
 # 如何解决热key问题？（作业帮多次考）
 创建热key的多个**副本**，并把他们**分不到不同的数据分片**，哈希槽，中。
 
