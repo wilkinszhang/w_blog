@@ -192,6 +192,16 @@ public class TransactionProducer {
 # 读取一次文件再通过socket发送到网络总共经历了几次拷贝？（shopee）
 四次。磁盘读取到内核缓冲区，内核拷贝到用户缓冲区，再从用户拷贝到socket缓冲区，最后从socket拷贝到网络发送缓冲区。
 
+# 为什么kafka比RocketMQ吞吐量高？
+  存储机制
+kafka采用日志文件存储，非常适合顺序写。RocketMQ使用文件系统，在高吞吐量情况下，日志性能更强。
+  分区机制
+kafka每个主题可以有多个分区，每个分区可以分布在不同服务器上。
+  网络模型
+kafka采用零拷贝，减少网络传播中拷贝次数。
+  消费模型
+kafka是基于拉取的，消费者根据自己消费能力拉取消息，适合高吞吐量场景，RocketMQ是基于推送的。
+
 # RocketMQ发一个消息会经过哪些环节？
 
 生产者创建一条消息，查询**NameServer**获取该消息topic的路由信息，根据特定的负载均衡策略选择一个队列，进而确定将消息发送给哪个broker。broker接受生产者消息，存储到broker磁盘中，broker发送一个确认响应给生产者。生产者执行本地事务，成功则向broker发送commit，broker向消费者发送消息。消费者处理完后，向broker发送ack，确认消息被消费，broker更新消息的状态。
