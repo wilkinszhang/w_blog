@@ -28,33 +28,14 @@ A用update修改id为x的数据。
 
 A事务读取id为x的数据，发现可以读到，发生了幻读。
 
-# 讲一讲可重复读实现原理？（作业帮）
-MVCC：事务开始时，会创建一个视图记录当前所有未提交事务ID。
-
-版本控制：可重复读下，事务读取的数据是基于事务开始的快照，而不是当前最新的数据。
-
-锁机制：为防止幻读，innodb在可重复读级别下用间隙锁和记录锁。
-
-实现细节：
-事务开始时，innodb记录当前活跃事务ID列表。
-读取数据时，innodb根据事务ID判断数据是否可见。如果数据的事务ID在当前事务的视图列表中，则数据不可见；否则数据可见。
-对于更新操作，innodb用行锁保证一致性。
-
-以下为参考。
-MVCC机制：每个事务在开始时创建一个快照，事务中所有读操作基于这个快照进行。
-
-事务开始时会分配一个事务ID，read view是事务开始时创建的，包含m_ids（未提交事务ID列表），max_limit_id（生成read view时，系统应该分配给下一个事务的ID值），min_limit_id（当前未提交事务最小的事务ID）。如果数据版本的事务ID小于读视图min_limit_id，说明该版本事务已提交，因此数据版本对当前事务可见。如果数据版本的事务ID大于或等于读视图max_limit_id，说明该版本是在read view创建后新产生的，对当前事务不可见。如果数据版本事务ID介于min_limit_id和max_limit_id之间，需要检查该ID是否在m_ids中：如果在，且事务ID不等于creator_trx_id，则该版本对当前事务不可见。如果在，且事务ID等于creator_trx_id，则该版本对当前事务可见。如果不在m_ids中，说明事务在read view创建之前提交，该版本对当前事务可见。
-
-锁机制：在可重复读级别下，事务对读取的数据加共享锁，防止其他事务修改。写操作会加排他锁，防止其他事务读取或修改。
-
-# 联合索引使用情况判断。（百度，作业帮，哈啰）
+# 联合索引使用情况判断。（百度，作业帮，哈啰，猿辅导）
 create table myTest2 (a int, b int, c int, KEY suoyin(a, b, c));
 
 explain select * from myTest2 where a=3 and b=5 and c=6;走联合索引
 
 explain select * from myTest2 where c=6 and b=5 and a=3;走索引，MySQL优化器会自动调整顺序。
 
-explain select * from myTest2 where a=3 and c=6;会走联合索引，但应该属于**索引截断**。
+explain select * from myTest2 where a=3 and c=6;会走联合索引，但应该属于**索引截断**。（满帮）
 
 explain select * from myTest2 where b=5 and c=6;不命中索引，索引扫描
 
@@ -68,6 +49,18 @@ explain select * from myTest2 where b=5 order by a asc;发生了索引树扫描
 
 explain select * from myTest2 where a=3 and b=5 or b=4 and c=1;逻辑运算符AND优先级高于OR，发生了索引树扫描
 
+口诀：左匹配，顺序定；范围截断后续停。
+
+    索引从左到右匹配，中间断了或范围查询后，后续字段无索引。
+
+条件顺序优化行，排序需一致方向。
+
+    查询条件顺序由优化器调整，ORDER BY 需与索引一致。
+
+逻辑运算分优先，索引树扫描现。
+
+    AND 优先 OR，复杂条件易导致索引树扫描。
+
 （1）system：系统表，少量数据，往往不需要进行磁盘IO；（2）const：常量连接；（3）eq_ref：主键索引(primary key)或者非空唯一索引(unique not null)等值扫描；（4）ref：非主键非唯一索引等值扫描；（5）range：范围扫描；（6）index：索引树扫描；（7）ALL：全表扫描(full table scan)；
 
 Extra列
@@ -78,6 +71,11 @@ Using index用了覆盖索引，说白了它表示是否所有获取的列都走
 Using where表示使用了where条件过滤。
 
 Using temporary表示是否使用了临时表，一般多见于order by 和 group by语句。
+
+# 假设查询条件为user_id，并且他存在索引。distinct和groupby哪个去重性能更好？（阿里）
+在语义相同，有索引情况下，groupby和distinct都能用索引，效率相同。
+
+在语义相同，没有索引情况下，distinct效率高于groupby。原因是distinct和groupby都会进行分组操作，但groupby可能先进行排序，触发filesort，导致性能下降。
 
 # 建数据库有什么原则？（百度）
 三大范式。
@@ -281,6 +279,11 @@ MySQL 的存储引擎采用插件式架构，允许不同的表使用不同的�
 
 a释放b的原因：分布式锁设置了过期时间，当锁超时后，其他线程可能会获取到这个锁，而原线程超时后继续操作，可能会释放新线程的锁。
 
+# Redis 为什么能做分布式锁？（猿辅导）
+分布式锁是用于协调多个进程或线程对共享资源访问的机制。
+
+在redis中，setnx可以实现分布式锁，因为redis单线程模型和原子操作特性。单线程模型确保同一时间只有一个命令会执行。而原子操作setnx保证设置锁时不被其他操作打断。
+
 # String的应用场景有哪些？(滴滴考过)
 
 **缓存**。我们可以把一些频繁访问的数据，如用户信息、商品详情，存储在redis中。
@@ -289,7 +292,20 @@ a释放b的原因：分布式锁设置了过期时间，当锁超时后，其他
 **session存储**。比如在web应用中，我们可以把用户session信息存储在redis中，实现session的共享。
 限流。我们可以用redis String实现api限流功能，防止某个api过度调用，可以用incrml 记录某个api调用次数。
 
-# setnx的底层原理是什么？（京东）
+# redis的使用场景有哪些（满帮）
+缓存。redis缓存频繁访问的数据，减少数据库负载。比如缓存用户会话数据，热门文章。
+
+会话存储。在分布式系统中，redis存储用户会话信息，保证用户在不同服务器切换会话状态一致性。
+
+消息队列：redis发布订阅可以实现简单消息队列。
+
+计数器：redis原子操作适合做计数器。
+
+排行榜：zset可以实现。
+
+分布式锁：在分布式系统中保证对资源的互斥访问。
+
+# setnx的底层原理是什么？（京东，满帮）
 set nx是redis设置键值对hash的命令。
 
 redis用listpack或哈希表存储键值对hash。
@@ -315,6 +331,7 @@ redis内置了lua解释器，用户可以通过Eval命令在redis服务器上执
 
 用一个名为过期字典的结构来追踪键的过期时间，该字典存储在每个Redis数据库实例中，保存键到其对应过期时间（UNIX时间戳，毫秒精度）的映射。
 
+# 向 1G 的 Redis 陆续写入 2G 的数据、会发生什么？（猿辅导）
 # redis的key没有过期，会不会被回收？（得物）
 # redis内存淘汰策略讲讲。（作业帮多次考，shopee）
 # Redis内存淘汰机制了解吗？（或者问Redis怎么只存储部分热点数据？）
@@ -355,6 +372,13 @@ no：写命令会写入AOF文件，不会主动同步到磁盘，由操作系统
 # AOF你觉得怎么优化？（shopee）
 # AOF文件过大怎么办？（作业帮）
 通过在 Redis 服务器运行期间读取当前数据库中的键值对并创建一个更紧凑的新 AOF 文件来完成的，同时使用 **AOF 重写缓冲区**捕获在这个过程中发生的所有写操作，确保数据的完整性和一致性，最终用新的 AOF 文件替换旧的文件以减少空间占用。AOF重写并没有对AOF有任何操作，他自己的名字是有歧义的，新的AOF文件更小是因为如多次Set值的命令，AOF重写会优化成只有一个Set值命令，保存最终的值。
+
+# redis宕机选哪个持久化方式？（腾讯）
+数据一致性要求较高：用AOF。
+
+恢复速度要求较高：用RDB。
+
+在实际中，通常会结合用RDB和AOF，可以定期执行RDB，在AOF中记录所有写操作。
 
 # 什么是bigkey？怎么解决？（作业帮）
 
@@ -779,6 +803,15 @@ java程序启动时，要加载大量类文件并进行初始化，很耗时间�
 jit编译。
 java程序运行时，jit编译器会对热点代码进行编译，可能导致启动时间延迟。可以调整jvm参数，tiered stop at level，减少编译层次。使用aot，提前将代码编译成机器码。
 
+# NoClassDefFoundError 和 ClassNotFoundException 有什么区别？（恒生）
+no class define：发生在编译阶段。代码中引用了某个类，但在当前项目中没有定义这个类。
+
+MyClass myObj = new MyClass();但在项目中没有定义MyClass类。
+
+class not found：发生在运行时，jvm无法找到指定类文件。
+
+java -cp . MyClass，jvm在当前路径下找不到MyClass.class文件。
+
 # 类加载过程，实际中类加载会遇到哪些问题？（京东）
 类找不到，class not found exception。jvm尝试加载一个类时，如果找不到类的定义，就会抛出异常。
 
@@ -821,6 +854,13 @@ java程序运行时，jit编译器会对热点代码进行编译，可能导致�
 hashSet：用哈希表存储元素，通过元素的hashcode方法和equals方法判断重复。先计算哈希值如果哈希值相同，再调用equals方法比较。
 
 TreeSet：用红黑树存储元素，通过元素自然顺序或比较器判断是否重复。如果两个元素比较结果是0，则相同。
+
+# treeset可以存null值吗，为什么？Concurrenthashmap可以存null吗，为什么？HashMap为什么可以存入null值（阿里）
+treeset不允许存储null值，原因是treeset的排序机制：用comparable接口或Comparator接口比较元素。如果允许存储null值，在比较时导致nullPointerException，因为null不能和任何对象比较。
+
+Concurrenthashmap不支持null键和null值。因为并发环境下null值可能导致歧义和错误。如某个键的值为null，无法区分是键不存在还是对应的值确实为null。
+
+hashmap可以存入null值是为了灵活性。当键为null时，hashmap将其存储在特定的位置，数组的第一个位置，而不是通过哈希函数计算位置。
 
 # 说一说自己对synchronized关键字的理解
 
@@ -916,7 +956,7 @@ AQS用双向链表管理等待线程的队列。
 
 存储在双向链表中的线程，可能这个线程出现异常不要竞争锁，这时要把这个节点删除，删除节点要获取前驱节点，如果不是双向链表，就得从头遍历。
 
-新加入链表的线程，在进入阻塞队列前，要判断前驱节点状态，只有前驱节点是sign状态才阻塞当前线程，这里涉及查找前驱节点。
+新加入链表的线程，在进入阻塞队列前，要判断前驱节点状态，**只有前驱节点是sign状态才阻塞当前线程**，这里涉及查找前驱节点。
 
 对应于shouldParkAfterFailedAcquire方法。
 
@@ -1511,6 +1551,11 @@ TCP面向连接，可靠，基于字节流的传输层协议，首部开销20~60
 
 可以调整net.ipv4.tcp_max_syn_backlog改变服务器抗攻击能力。
 
+# TCP连接一个没有服务的端口，会发生什么？（腾讯）
+连接请求会被拒绝：当客户端尝试连接一个没有服务的端口时，服务器会返回一个RST复位包，表示该端口没有监听服务，连接请求被拒绝。
+
+错误码：在TCP/IP协议中，返回Connection Refused。
+
 # HTTP如何保存用户状态？（字节考过）
 
 HTTP通过session和cookie保存用户状态，session保存在server，相对更安全，可通过client的cookie存放seesionID或URL重写实现用户状态跟踪。cookie存在client中，存在被篡改风险。
@@ -1703,7 +1748,7 @@ AOP（面向切面编程）是一种编程范式，用于将横切关注点（�
 
 AOP切面在bean实例化之后，执行初始化方法之前。
 
-# AOP的底层实现？（58同城）
+# AOP的底层实现？（58同城，满帮）
 AOP底层实现依赖于代理模式和反射机制。
 
 代理模式：动态代理：运行时生成代理类，有JDK动态代理和CGLIB动态代理。
@@ -1839,7 +1884,7 @@ springcloud是基于springboot的微服务框架，他提供了一系列工具�
 
 都用于将对象注册到Spring容器中，但@Component用于自动扫描类并注册为bean，而@Bean则用于显式地定义在配置类中的方法，用于生成具体的bean实例，通常提供更多的配置灵活性。
 
-# SpringBoot的自动配置如何实现的？什么是SpringBoot自动装配？（腾讯）
+# SpringBoot的自动配置如何实现的？什么是SpringBoot自动装配？（腾讯，恒生）
 
 自动装配就是通过注解或一些简单的配置就能在SpringBoot的帮助下实现某块功能。
 
