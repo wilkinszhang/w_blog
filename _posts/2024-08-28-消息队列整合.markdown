@@ -62,6 +62,7 @@ Broker和topic是多对多关系，一个topic可以跨越多个Broker。
 # kafka如何保证高吞吐的？它是如何保证消息不丢失的？(阿里考过，得物)
 # kafka怎么保证数据一致？/kafka如何保证可靠传输？（百度）
 # kafka底层做了哪些优化让他如此高性能？（shopee）
+# kafka消息丢失的问题？（腾讯）
 高吞吐。顺序读写，kafka使用磁盘顺序读写，而不是随机读写，可以提高效率。
 零拷贝技术。kafka使用零拷贝减少了数据在内存中拷贝次数。
 批量处理，kafka支持批量发送和接收消息。
@@ -69,6 +70,45 @@ Broker和topic是多对多关系，一个topic可以跨越多个Broker。
 不丢失的保证。持久化存储，kafka将消息持久化到磁盘，即使服务器宕机消息也不丢失。
 副本机制。kafka每个分区都有多个**副本**，其中一个副本是领导者，其他副本是追随者，如果领导者失败，追随者可以接管。
 **ack**机制。kafka提供不同的ack级别，生产者选择不同的ack级别保证消息可靠。如ack为all表示所有副本都确认收到消息后生产者才认为消息发送成功。
+
+# kafka丢消息如何发现？（腾讯）
+消息确认机制：如果ack设置为0或1，可能消息丢失，因为生产者不会等待所有副本的确认。
+
+消息持久化：kafka通过日志文件持久化消息，如果磁盘写入失败会导致消息丢失。
+
+监控报警：用kafka Manager监控集群状态。
+
+# kafka如何保证消息只被消费一次？（腾讯）
+生产者端的幂等性：通过设置enable idempotence，kafka会为每个消息生成一个唯一的序列号，并在broker端进行去重，保证消息只被存储一次。
+
+kafka事务API：保证一组消息要不全部成功消费，要不全部失败。
+
+消费者端的幂等性：处理消息时，通过维护一个已处理消息的集合如redis或本地缓存，在处理消息前检查该消息是否已经被处理过。
+
+消费者位移提交：可以用手动提交。
+
+```java
+//生产者端配置
+Properties props = new Properties();
+props.put("bootstrap.servers", "localhost:9092");
+props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+props.put("enable.idempotence", "true");
+//消费者手动提交
+consumer.subscribe(Arrays.asList("topic-name"));
+while (true) {
+    ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
+    for (ConsumerRecord<String, String> record : records) {
+        // 处理消息
+        process(record);
+    }
+    // 手动提交位移
+    consumer.commitSync();
+}
+```
+
+# kafka消费者数量大于分区数量会出现什么情况？（腾讯）
+消费者闲置：因为他们没有分配到任何分区。
 
 # 讲一讲rocketMQ支持事务消息吗？怎么做的？（网易）
 事务消息流程。
@@ -189,8 +229,45 @@ public class TransactionProducer {
 
 比如使用sendfile系统调用时，数据可以直接从磁盘缓冲区拷贝到网络发送缓冲区，中间不需要经过用户空间，这就减少了2次拷贝。
 
+# Java哪里用到了零拷贝（腾讯）
+在处理文件上传和下载时，用Java NIO的FileChannel类结合transferTo或transferFrom方法，可以将文件数据从文件系统缓存传输到套接字缓存。
+
+```java
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.channels.FileChannel;
+import java.nio.channels.SocketChannel;
+
+public class ZeroCopyExample {
+    public static void main(String[] args) throws IOException {
+        String filePath = "example.txt";
+        FileInputStream fileInputStream = new FileInputStream(filePath);
+        FileChannel fileChannel = fileInputStream.getChannel();
+
+        SocketChannel socketChannel = SocketChannel.open();
+        socketChannel.connect(new InetSocketAddress("localhost", 8080));
+
+        // 使用零拷贝技术传输文件内容
+        long bytesTransferred = fileChannel.transferTo(0, fileChannel.size(), socketChannel);
+        System.out.println("Bytes transferred: " + bytesTransferred);
+
+        fileChannel.close();
+        socketChannel.close();
+    }
+}
+```
+
 # 读取一次文件再通过socket发送到网络总共经历了几次拷贝？（shopee）
 四次。磁盘读取到内核缓冲区，内核拷贝到用户缓冲区，再从用户拷贝到socket缓冲区，最后从socket拷贝到网络发送缓冲区。
+
+# 如何写一个消息中间件？（腾讯）
+
+核心组件：生产者，消费者，Broker，注册中心。
+
+流转过程：生产者将消息发送到Broker，Broker暂存消息并负责消息管理，消费者从Broker获取消息并消费。
+
+技术要点，使用Netty实现各模块间的通信，使用现有服务发现技术如Zookeeper。像kafka那样，采用分区概念增强可扩展性和并发能力。数据存储方面，提供同步和异步的刷盘选项。故障恢复和高可用，利用选举算法确保Leader宕机时，Follower能迅速接管。
 
 # 为什么kafka比RocketMQ吞吐量高？
   存储机制
@@ -238,11 +315,6 @@ public boolean idempotentOperation(String uniqueId, Object data) {
    return true;
 }
 ```
-
-
-# 如何写一个消息中间件？
-
-核心组件：生产者，消费者，Broker，注册中心。流转过程：生产者将消息发送到Broker，Broker暂存消息并负责消息管理，消费者从Broker获取消息并消费。技术要点，使用Netty实现各模块间的通信，使用现有服务发现技术如Zookeeper。像kafka那样，采用分区概念增强可扩展性和并发能力。数据存储方面，提供同步和异步的刷盘选项。故障恢复和高可用，利用选举算法确保Leader宕机时，Follower能迅速接管。
 
 # 各注册中心如Zookeeper、Consul、Eureka或Nacos之间的选型对比？
 

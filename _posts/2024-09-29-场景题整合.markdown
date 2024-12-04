@@ -310,7 +310,7 @@ MySQL的优化机制。MySQL删除数据时，标记分配的空间可以复用�
 
 消费送积分业务逻辑，当用户进行消费时，先从余额表扣除金额，再根据消费金额计算送的积分，并累加到积分表，消费和积分操作应放在一个**事务**中进行。
 
-# 在数据库中出现死锁怎么排查？（小红书，百度，得物）
+# 在数据库中出现死锁怎么排查？（小红书，百度，得物，腾讯）
 识别死锁。用show engine innodb status命令输出的latest detected deadlock部分确认。会详细列出发生死锁的事务消息。
 
 分析死锁日志。看事务执行顺序和加锁顺序，以及锁的类型（行锁record lock，表锁）。
@@ -359,12 +359,28 @@ MySQL的优化机制。MySQL删除数据时，标记分配的空间可以复用�
 # 如果A线程插入一条记录，但是未提交事务，B线程执行select for update会怎么样？（得物）
 如果事务A插入了记录但未提交，这条记录会被事务A持有排他锁。事务B执行select for update会被阻塞，直到事务A提交或回滚。
 
+# 数据库有两个事务要修改数据库同一行数据一个字段，一个改为A，一个B。一个事务到达，开启了事务但没有commit，这时另一个事务到达，请问此时B事务会怎样。继续发问：在读已提交级别会怎样？上面两个事务的修改结果是啥，都有哪些可能结果？（腾讯）
+B事务会被阻塞，在读已提交和可重复读都被阻塞。
+
+如果A事务成功提交，且B事务也提交，则字段先改为A再改为B。
+如果A事务回滚，且B事务提交，则字段修改为A被撤销，恢复为initial，再被修改为B。
+
 # 火车票怎么更新库存？（得物，小红书）
 火车票库存可以表示为一个二维矩阵，其中行表示站点，列表示车次。每个元素表示站站的车票数量。
 
 库存更新。当用户购买车票时，**系统要将从起始站到终点站所有站站库存减去相应车票数量**，更新库存用悲观锁确保数据一致。
 
 高并发处理。分布式锁，用redis或zookeeper实现，保证同一时间只有一个请求可以更新库存。
+
+# 要设计一个转账接口，有一个账户表，从一个用户账户扣钱，给另一个增加钱，怎么设计？怎么处理不正常或极端场景？（腾讯）
+参考。
+事务管理：转账涉及两个账户的金额变动，必须保证两个操作同时成功或失败。用分布式事务管理。
+
+并发控制：用悲观锁确保同一时间只能有一个事务能修改账户的金额。
+
+接口设计：源账户ID，目的账户ID，转账金额作为参数，接口的返回值包含操作结果以及错误信息。
+
+怎么处理极端场景：异常情况要设计合理的重试机制，在重试达上线后报警。用普罗米修斯，ELK监控运行状态。
 
 # 如何让MySQL抗住百万级别并发查询？（小红书）
 优化数据库结构。采用分库分表策略，将数据分散到多个数据库实例和表中。比如按照用户ID的哈希值进行分库，按照时间进行分表。可以采取一致性哈希算法解决不均衡问题。
@@ -440,7 +456,7 @@ CPU使用率。取决于a服务并发能力，如果a服务线程池大小固定
 
 监控。采用es或prometheus收集和分析系统的日志和性能。
 
-# 怎么设计购物车系统？
+# 怎么设计购物车系统？（腾讯）
 
 **系统架构**。采用分布式架构，保证系统高可用和可拓展性。购物车服务可以独立部署，通过**微服务**方式与其他服务如商品服务、用户服务进行交互。
 
@@ -452,7 +468,7 @@ CPU使用率。取决于a服务并发能力，如果a服务线程池大小固定
 
 **用户体验**。购物车需要实时更新。当有用户添加商品到购物车时，商品数量应立即更新，可以通过websocket或长轮询实现。
 
-
+购物车至少要有skuid，数量，加购时间，勾选这些属性。在设计购物车存储时，要考虑多端同步，以及要实现用户未登录的暂存购物车。
 
 # 如何在不停机情况下更新系统？
 服务分为有状态服务和无状态服务。
@@ -778,7 +794,7 @@ public class ShardRouter {
 }
 ``` -->
 
-# linux看端口占用情况，有什么命令？（百度）
+# linux看端口占用情况，有什么命令？（百度，腾讯）
 netstat -tuln查看监听的tcp和udp端口。
 
 ss -tuln的性能更好。
@@ -786,9 +802,9 @@ ss -tuln的性能更好。
 lsof -i :8080。
 
 # 多核情况下负载高低命令？（腾讯）
+top命令。关注load average值。显示最近1分钟，5分钟，10分钟的系统负载。结合CPU核心数判断负载是否过高，如系统是16核，负载值为10，则系统尚未达到瓶颈。
 
-
-# Java栈溢出和堆溢出抛出什么类型的异常？（百度，蚂蚁）
+# Java栈溢出和堆溢出抛出什么类型的异常？（百度，蚂蚁，腾讯）
 堆溢出，异常类型是out of memory错误，当程序不断创建对象并且这些对象没有及时回收时，堆内存就会耗尽。
 
 可以通过调整jvm堆内存大小比如-Xmx和-Xms增加堆容量。或者使用软引用以及弱引用。
@@ -888,6 +904,96 @@ qps衡量读频繁场景，如搜索引擎，api服务。tps衡量写频繁场�
 
 用线程池：管理日志记录。
 
+# 如果让你设计一个日志管理平台，你会如何设计，各个层面，持久层，缓存，控制层之类的都说一下。（腾讯）
+持久层：MySQL，存储日志基本信息和元数据。对于大量的日志数据，用ES存储和检索。用Hadoop或Hbase进行日志的分布式存储和处理。
+
+缓存层：用redis，存储热点日志数据。
+
+控制层：用Springboot框架搭建控制层，提供RESTful接口，方便前端或其他系统调用。实现日志增删改查，提供日志实时查询和历史查询。
+
+用swagger生成API文档，方便开发测试。
+
+消息队列：用kafka处理日志异步流处理。将日志发送到消息队列中，由消费者处理。
+
+```java
+// 使用Spring Boot搭建控制层 
+@RestController //定义一个RESTful控制器
+@RequestMapping("/logs")//定义了API的基础路径
+public class LogController {
+@Autowired
+private LogService logService;//业务逻辑层
+
+@GetMapping("/{id}")
+public Log getLogById(@PathVariable Long id) {
+    return logService.getLogById(id);
+}
+
+@PostMapping
+public Log createLog(@RequestBody Log log) {
+    return logService.createLog(log);
+}
+
+@PutMapping("/{id}")
+public Log updateLog(@PathVariable Long id, @RequestBody Log log) {
+    return logService.updateLog(id, log);
+}
+
+@DeleteMapping("/{id}")
+public void deleteLog(@PathVariable Long id) {
+    logService.deleteLog(id);
+}
+}
+```
+
+# 如果让你设计一个日志收集器，你如何设计？日志收集器接入的服务节点非常多，你如何进行管理？如何在不影响业务情况下尽可能多发一些日志呢？（腾讯）
+**怎么设计**：
+
+客户端组件，在应用程序中嵌入日志收集代码，将日志发送给中央收集器。
+
+中央收集器，初步处理和存储。
+
+存储系统：ES和MySQL。
+
+**服务节点非常多**：注册中心，分层管理。
+
+**如何尽可能多发一些日志**：
+
+日志级别：在生产环境用info和warn。在调试和排查调整为debug或trace，获取更多信息。
+
+异步日志记录：如Log4j2或Logback的异步Appender。
+
+采样策略：对于高频日志，如每100条日志只记录1条。
+
+```java 
+import org.apache.log4j.Logger; 
+import org.apache.log4j.BasicConfigurator; 
+import org.apache.kafka.clients.producer.KafkaProducer; 
+import org.apache.kafka.clients.producer.ProducerRecord;
+public class LogCollector {
+private static final Logger logger = Logger.getLogger(LogCollector.class);
+private static KafkaProducer<String, String> producer;
+
+static {
+    BasicConfigurator.configure();
+    producer = new KafkaProducer<>(KafkaConfig.getProducerProps());
+}
+
+public static void main(String[] args) {
+    logger.info("Starting log collection...");
+    // 模拟日志数据生成
+    for (int i = 0; i < 100; i++) {
+        String logMessage = "Log message " + i;
+        logger.info(logMessage);
+        sendToKafka(logMessage);
+    }
+}
+
+private static void sendToKafka(String logMessage) {
+    producer.send(new ProducerRecord<>("log-topic", logMessage));
+}
+}
+```
+
 # 如何把一个很大的文件在20分钟内把他处理并存入磁盘中？（得物）
 文件分割。将大文件**分割成多个小文件**，可以并行处理，提高效率。用java **RandomAccessFile**类，根据文件大小和可用内存将文件分割成多个块，每个块单独处理。
 多线程处理。每个线程处理一个文件块。**ExecutorService**管理线程池。
@@ -905,7 +1011,7 @@ qps衡量读频繁场景，如搜索引擎，api服务。tps衡量写频繁场�
 逐个比较。对每个小文件，将其中一个文件内容加载到内存中，然后逐个检查另一个文件中url是否存在于内存中，如果存在，则说明这个url是两个文件的共同url。
 结果合并。将所有小文件找到的共同url合并起来，得到最终结果。
 
-# 给定100亿个无符号乱序整数序列，如何求出100亿个数的中位数，内存只有512M字节。
+# 给定100亿个无符号乱序整数序列，如何求出100亿个数的中位数，内存只有512M字节。（腾讯）
 分治。
     分块处理。将100亿个数分成多个块，比如可以分成10000个块，每个块包含100万个数。
     排序。对每个小块进行排序，排序可以在内存中完成。
@@ -950,7 +1056,7 @@ private int findMedianUsingBinarySearch(List<List<Integer>> blocks) {
 
 # 有10亿个url，会出现重复，内存只有1G，如何统计出现次数最多的前100个URL（作业帮）
 
-# 一个异常巨大的网络日志文件，日志记录来访者ip以及时间戳(即每一次访问都有一次记录)，查找里面访问次数前10的ip。（shopee）
+# 一个异常巨大的网络日志文件，日志记录来访者ip以及时间戳(即每一次访问都有一次记录)，查找里面访问次数前10的ip。（shopee，腾讯）
 # 给你10亿个数据，怎么找出重复次数最多的10个数？（腾讯）
 
 分块。1000万个查询串，每个255字节，总共2550MB，超过1G字节，应分为4块，每个块250万个串。
@@ -1008,6 +1114,7 @@ public class TopKQueries {
 ```
 
 # 给定输入文件，包含40亿个非负整数，设计算法，产生**一个不存在该文件中的整数**，内存限制1G字节，怎么实现？如果再难一点，只用10M字节内存呢？
+# 40亿只鸟，每个鸟都有自己的id，经过一个信号塔会记录，信号塔容量为1G字节，晚上工作人员会带着id查询这个鸟今天是否经过，怎么设计？如果鸟更多呢？400亿呢？（腾讯）
 
 1G字节内存情况。采用**位图法**。因为整数的范围是0到2的32次方减一，我们要2的32次方个位，也就是512M字节。
 

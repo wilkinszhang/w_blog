@@ -23,3 +23,75 @@ FROM students
 GROUP BY name
 HAVING count > 1;
 ```
+
+# 写SQL：设计一个社交的数据库，就是可以允许用户去发帖子，然后可以发评论，然后也可以给帖子点赞。你设计几张表，然后并且从里面去找到点赞数最高的帖子，以及发评论数最多的一个用户和他最新的一条评论（美团）
+用户表，帖子表，点赞表，评论表。
+
+```sql
+CREATE TABLE Users (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE Posts (
+    post_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)
+);
+
+CREATE TABLE Likes (
+    like_id INT PRIMARY KEY AUTO_INCREMENT,
+    post_id INT,
+    user_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES Posts(post_id),
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)
+);
+
+CREATE TABLE Comments (
+    comment_id INT PRIMARY KEY AUTO_INCREMENT,
+    post_id INT,
+    user_id INT,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES Posts(post_id),
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)
+);
+```
+**查询点赞最高的帖子**：
+```sql
+SELECT p.post_id, p.content, COUNT(l.like_id) AS like_count
+FROM Posts p
+LEFT JOIN Likes l ON p.post_id = l.post_id
+GROUP BY p.post_id
+ORDER BY like_count DESC
+LIMIT 1;
+```
+**查询发表评论最多的用户和他最新的一条评论**：
+```sql
+WITH CommentCount AS (
+    SELECT c.user_id, COUNT(c.comment_id) AS comment_count
+    FROM Comments c
+    GROUP BY c.user_id
+),
+LatestComment AS (
+    SELECT c.user_id, c.content, c.created_at
+    FROM Comments c
+    WHERE c.created_at = (
+        SELECT MAX(created_at)
+        FROM Comments
+        WHERE user_id = c.user_id
+    )
+)
+SELECT u.username, cc.comment_count, lc.content, lc.created_at
+FROM Users u
+JOIN CommentCount cc ON u.user_id = cc.user_id
+JOIN LatestComment lc ON u.user_id = lc.user_id
+ORDER BY cc.comment_count DESC
+LIMIT 1;
+```
+
