@@ -61,7 +61,7 @@ row格式，每个数据行的变更事件记录在binlog中。
 问题：
 数据一致性问题：可以使用半同步复制技术，提高一致性。
 
-# 索引失效的原因有哪些？（美团，携程，腾讯云智，京东，得物，度小满，腾讯多次考，作业帮，shopee多次考，哈啰，满帮多次考，腾讯）
+# 索引失效的原因有哪些？（美团，携程，腾讯云智，京东，得物，度小满，腾讯多次考，作业帮，shopee多次考，哈啰，满帮多次考，腾讯，阿里）
 # 为了防止索引失效，可以采用哪些方法？（58同城）
 
 创建了联合索引，但查询条件不遵守**最左匹配原则**。如abc查询条件使用bc。
@@ -70,7 +70,7 @@ row格式，每个数据行的变更事件记录在binlog中。
 
 查询条件部分索引没有命中。查询条件中使用or，而且or的条件中有一个列索引没有命中。
 
-查询子句中操作符左右两边数据类型不一致，发生**隐式转换**。
+查询子句中操作符左右两边数据类型不一致，发生**隐式转换**。（容易忘）
 
 操作符问题，!=和not in会导致全表扫描，无法利用索引。
 
@@ -93,7 +93,7 @@ like "%xxx%"不会全表扫描，而是全扫描二级索引树
 不一定，如果Or条件所有条件都建立索引时索引也不会失效。
 
 # 联合索引的原理讲一下。（百度，作业帮）
-联合索引是在数据库表中，对多个列进行索引的结构。
+联合索引是在数据库表中，对多个列进行索引的结构，他是多维的。
 
 索引的创建：在创建联合索引时，数据库系统会根据指定的列顺序，创建一个多维的索引结构。
 
@@ -224,7 +224,7 @@ B树是一种自平衡的多路搜索树。
 
 B+树是 B树的一种变体，所有的键值都存在于叶子节点中，内部节点只用作路由。
 
-# B+树相对于B树的优点是什么？/MySQL为什么用B+树不用B树（shopee多次考，快手，百度，得物，作业帮）
+# B+树相对于B树的优点是什么？/MySQL为什么用B+树不用B树（shopee多次考，快手，百度，得物，作业帮，快手）
 # MySQL为什么用B+树不用跳表？（58同城）
 B+树对B树：
 
@@ -236,6 +236,15 @@ B+树对跳表：
 磁盘IO优化：B+树叶子结点形成有序链表，范围查询高效。跳表的层级结构可能导致更多随机IO。B+树虽然也是层级结构但是一个节点可以存储更多键值。
 
 并发控制：B+树在并发控制有成熟的解决方案锁机制，跳表的并发控制相对复杂性能不如B+树。
+
+# 当我有一个字段a，检索一个a等于10这一条数据，在B+树上的检索过程是什么？（快手）
+从根节点开始：读取根节点，比较10与节点存储的关键值，比如根节点关键值【20,40,60】，表示有4个指针，对应区间【-inf，20】，【20,40】，【40,60】，【60，+inf】。a=10落在第一个区间，选择第一个子指针指向的子节点。
+
+遍历内部节点，重复步骤。
+
+到达叶子节点，存储实际键值和记录指针。
+
+用记录指针访问具体记录，返回。
 
 # B+树叶子结点除了存储数据还有什么？（蚂蚁）
 指针：叶子结点之间通过指针相互连接，形成一个有序链表。
@@ -252,7 +261,7 @@ B+树存储的是索引数据，通常是键值对，键用于快速查找，值
 # 结合B+树结构讲讲为什么一定要最左匹配才行？（快手）
 B+树基本结构。B+树是一种多路搜索树，每个节点可以有多个子节点，在B+树中，数据都存储在叶子节点上，而非叶子节点只存储索引信息。
 
-最左匹配。索引的构建是基于从左到右的列顺序，查询时，如果跳过了某个列，后续列值的位置就无法准确定位。
+最左匹配。索引的构建是基于从左到右的列顺序，查询时，如果跳过了某个列，后续列值的位置就无法准确定位，因为联合索引是多维结构有序的。
 
 # MySQL 的隔离级别是基于锁实现的吗？（网易）
 # MySQL幻读如何解决？（作业帮）
@@ -264,6 +273,7 @@ B+树基本结构。B+树是一种多路搜索树，每个节点可以有多个�
 通过**隐藏列，读视图，undolog**，实现mvcc。隐藏列包含db_trx_id表示最近修改该行的事务id等。读视图使得事务只能看到最近修改事务id小于他的行。undolog保存事务修改之前数据的版本。
 
 # mvcc的实现原理是什么？读已提交和可重复读隔离级别下mvcc实现的区别是什么？（shopee）
+# MVCC在读已提交和可重复读下产生读视图的区别是什么？（京东）
 # innodb是如何实现可重复读的？（京东）
 版本控制。mvcc的思想是为每个数据行维护多个版本，每个版本对应一个事务id，这样不同的事务可以同时看到数据的不同版本。
 事务id。每个事务开始前分配一个唯一事务id，读取时，事务只能看到他之前的数据版本。
@@ -279,6 +289,22 @@ B+树基本结构。B+树是一种多路搜索树，每个节点可以有多个�
 可重复读在执行第一条select时，生成一个readview，整个事务期间readview不会变化。
 <!-- 在读已提交隔离级别下，mvcc的实现相对简单，事务在读数据时，只会读已提交的版本，如果一个事务正在修改数据，其他事务看到修改前的版本。
 可重复读隔离级别下，mvcc实现相对复杂，事务读数据时，会锁定读取的版本，确保整个事务期间，读取的事务版本不会发生变化。 -->
+
+# undolog记录的两个隐藏列说一下（快手）
+undolog记录了事务中对数据的修改操作，两个列是roll_pointer和trx_id。
+
+roll_pointer：是指向undolog的指针，每当对数据行修改时，MySQL生成一条新的undolog 记录，并将roll_pointer指向这条记录。
+
+trx_id：记录了修改该数据行的事务ID，trx_id可以判断当前事务是否能看到该数据行的某个版本。
+
+# 要去删数据， delete * from t where a = 'xxx'， a 是普通索引，基于这个 SQL 场景，能把在 RC 下面和 RR 下面，把它们加锁的一个区别说一下？ （京东）
+读已提交，事务获得对索引a上xxx，1的记录锁，主键1上的记录锁。
+
+可重复读，事务获得对索引a上xxx，1的临键锁，索引a上yyy，2的间隙锁。主键1的记录锁。
+
+注：如果 LOCK _MODE为 x，说明是 next-key 锁;如果 LOCK_MODE为 X，REC_NOT_GAP ，说明是记录锁,如果 LOCK MODE为 x，GAP ，说明是间隙锁。
+
+注2：可重复读下，对普通索引命中的索引项加临键锁，下一个索引项加间隙锁，主键索引命中的索引项加记录锁。读已提交下，对普通索引加记录锁，对主键索引加记录锁。
 
 # 讲一讲可重复读实现原理？（作业帮，腾讯）
 MVCC：事务开始时，会创建一个视图记录当前所有未提交事务ID。
@@ -357,6 +383,9 @@ EXPLAIN关键字分析SQL语句，返回的**key列**展示了查询使用的索
 
 悲观锁：通过数据库行级锁如select for update或Java中的synchronized实现。
 
+# 乐观锁会发生死锁吗？（携程）
+不会。
+
 # 乐观锁如何保持数据一致？（shopee）
 在表中新增一个版本号字段，每次更新时检查版本号并递增。
 
@@ -384,7 +413,6 @@ WHERE id = 1 AND version = current_version;
 有个变量专门记录，show global status like ‘%Slow_queries%’，即slow queries这个变量。
 
 # 讲一讲慢查询怎么处理？慢SQL怎么处理？（百度，度小满，得物，腾讯多次考）
-# 做过MySQL调优吗？（得物，作业帮多次考）
   识别慢查询
 通过慢查询日志查看具体的SQL语句，了解哪些查询耗时长。
   分析慢查询原因
@@ -393,34 +421,35 @@ WHERE id = 1 AND version = current_version;
 添加合适索引，或者优化查询条件。
 
 # 慢查询的原因？（阿里）
+# 有哪些常⻅的 SQL 优化**⼿段**？
+# 做过MySQL调优吗？（得物，作业帮多次考）
+# 说一下MySQL常用优化方式（恒生，帆软，滴滴考过，快手欧）
 一般是索引问题，可能是选错索引，也可能是查询的行数太多。
 
 客户端和数据库连接数过小，会限制SQL查询并发数，增大连接数可以提升速度。
 
 innodb会有一层内存Buffer pool提升查询速度，一般命中率大于99%，如果低于这个值，可以考虑增大Buffer pool大小。
 
-# 有哪些常⻅的 SQL 优化**⼿段**？（帆软，滴滴考过）
-# 说一下MySQL常用优化方式（恒生）
-
+<!-- 
 避免使用**select***，
 
 深度分页优化，
 
 避免超过3个表做join，
 
-不要用外键和级联，
+不要用外键和级联，on delete cascade，on update cascade，更新父表要更新子表
 
-用union all代替union，
+用union all代替union， -->
 
-show profiles和show profile命令查看执行时间。
+<!-- show profiles和show profile命令查看执行时间。 -->
 
-优化慢sql，
+<!-- 优化慢sql，
 通过set global show slow query log开启慢查询日志，
 然后用explain 分析对应的select语句，
 比较重要的字段有select type字段，指的是查询的类型，比如simple没有联合查询和子查询，table字段表示涉及到的表，
 **type字段**是**慢查询重要参考指标**，all，index，range，ref，eq_ref，const，System逐渐从差到好。extra字段是额外信息，比如using index是覆盖索引，using index condition是索引下推。
 
-最后是正确使用索引，被频繁更新的字段应慎重建立索引，尽量联合索引而不是单列索引。
+最后是正确使用索引，被频繁更新的字段应慎重建立索引，尽量联合索引而不是单列索引。 -->
 
 # MySQL突然的抖动存在的原因可能有哪些？（哈啰）
 数据库连接池：连接数不足或过多。
@@ -491,7 +520,7 @@ redolog写入page cache但未写入磁盘，**操作系统**崩溃，出现数�
 
 性能非常差！InnoDB 页的大小一般为 16KB，而页又是磁盘和内存交互的基本单位。这就导致即使我们只修改了页中的几个字节数据，一次刷盘操作也需要将 16KB 大小的页整个都刷新到磁盘中。而且，这些修改的页可能并不相邻，也就是说这还是随机 IO。
 
-# binlog 和 redolog 有什么区别？
+# binlog 和 redolog 有什么区别？（快手）
 # 为什么会有redolog和binlog两套log（作业帮）
 
 binlog用于数据库还原，属于数据级别的数据恢复，主从复制是binlog的应用场景。redolog属于事务级别的数据恢复。**redolog**是**InnoDB引擎特有**的，binlog是所有存储引擎共有的，binlog是MySQL的server层实现的。redolog是物理日志，记录的是某个页的修改。binlog属于逻辑日志，记录的是数据库执行的所有DDL和DML语句。
@@ -577,7 +606,7 @@ EXPLAIN 是分析查询语句性能的最重要工具之一，可以判断查询
 # 怎么在服务器不停机情况下进行平滑分库分表？（美团）
 使用双写策略。在写入新库同时，也写入旧库。然后进行数据迁移，读旧库数据写到新库。迁移完成后，更新路由规则，将请求路由到新库中。
 
-# 深度分⻚如何优化？（shopee）
+# 深度分⻚如何优化？（shopee，快手）
 
 深度分页指的是当查询结果集非常庞大时，用户请求的是结果集的某个较深的页面（例如，第1000页）。优化方案，如范围查询，子查询，延迟关联和覆盖索引。
 
@@ -639,7 +668,18 @@ TEXT 和 BLOB 类型字段的大小可能非常大，导致索引性能下降。
 
 其次Redis 采用**单线程模型**可以避免了多线程之间的竞争，省去了多线程切换带来的时间和性能上的开销。
 
-最后，Redis 采用了 I/O 多路复用机制处理大量的客户端 Socket 请求，IO 多路复用机制是指一个线程处理多个 IO 流，就是我们经常听到的 select/epoll 机制。简单来说，在 Redis 只运行单线程的情况下，该机制允许内核中，同时存在多个监听 Socket 和已连接 Socket。
+最后，Redis 采用了 I/O 多路复用机制处理大量的客户端 Socket 请求，IO 多路复用机制是指一个线程处理多个 IO 流，就是我们经常听到的 select/epoll 机制。简单来说，在 Redis 只运行单线程的情况下，该机制允许内核中，同时存在多个监听 Socket 和已连接 Socket。采用reactor模型。
+
+# reactor具体什么样的结构？有哪几种？redis是哪一种（腾讯）
+reactor的工作原理：
+
+事件循环event loop：redis主线程运行一个事件循环，监听事件，如连接事件，读写事件。
+
+事件分发器event demultiplexer：事件发生，他将事件发送给处理器。
+
+事件处理器event handler。
+
+有单线程reactor和多线程reactor。单线程是一个负责分发和处理，而多线程是主线程负责监听和分发，其他线程负责处理。redis是单线程reactor。
 
 # 为什么MySQL不能用单线程跟redis一样快？（shopee）
 数据处理方式不同：redis是内存数据库，redis用单线程模型，通过事件驱动避免多线程的锁竞争和上下文切换开销。
@@ -743,6 +783,29 @@ redis的主从复制有同步复制和异步复制两种。 -->
 
 集群模式：它是分布式解决方案，通过分片将数据分不到多个节点上，每个节点负责一部分数据。集群模式，每个节点都可以处理读写请求，某个节点故障时，集群自动进行故障转移。
 
+# redis主从模式相关的命令知道哪些吗？如何配置（腾讯）
+常用命令：
+
+查看主从状态：info replication查看主从信息。
+
+手动切换主从：slaveof no one可以将从节点提升为主节点。也可以用slaveof new-master-ip port重新配置为另一个主节点的从节点。
+
+```bash
+127.0.0.1:6379> info replication
+# Replication
+role:master
+connected_slaves:0
+master_failover_state:no-failover
+master_replid:b176b97aaf854e8a60247e9bb0c53a65b4cc3905
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:0
+second_repl_offset:-1
+repl_backlog_active:0
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:0
+repl_backlog_histlen:0
+```
+
 # redis开启集群模式之后如果全挂了呢？怎么继续保证可用性？（腾讯）
 异地多活。
 
@@ -765,6 +828,10 @@ redis的主从复制有同步复制和异步复制两种。 -->
 查找元素，从最高层开始，逐层向下查找，直到找到目标元素或确定目标不存在。
 
 删除：查找目标节点，然后从各层链表中删除该节点。
+
+# redis的跳表，什么时候查询效率最低？key要怎么设计可以避免查询效率低的情况（拼多多）
+参考。
+大量元素有相同的分数score，这些元素在跳表同一级上形成较长的链表。
 
 # 什么场景选择跳表？跳表有什么优势？（百度）
 场景选择：
@@ -806,9 +873,20 @@ Zset 类型用于排序场景，比如排行榜、电话和姓名排序等，也
 将uid作为元素，打赏金额作为分数，插入zset，如用户a打赏100元，我们可以执行 zadd live_reward 100 live_rewardA 的操作。
 获取榜单可以用zrevrange命令，从高到低获取排名靠前用户，如zrevrange 0 9 withscores获取前10名用户。
 
-# Redis几种数据类型/数据结构怎么实现的？（网易，蚂蚁，百度，作业帮，shopee）
+# Redis几种数据类型/数据结构怎么实现的？（网易，蚂蚁，百度，作业帮，shopee，快手，阿里）
+# redis数据结构的应用场景（京东，拼多多，快手）
 
 redis有五种数据类型，String List Hash Set Zset。String的实现是基于SDS的，拼接字符串不会造成缓冲区溢出。List基于**quicklist**实现，quicklist是双层结构，内部有多个node，每个node是一个ziplist或者linkedlist。hash基于listpack或哈希表实现。set基于整数集合或哈希表实现。zset基于listpack或跳表实现。
+
+String：存储简单键值对；存储用户会话信息；计数器统计网站访问量。
+
+List：消息队列；任务队列。
+
+Set：存储用户的兴趣标签。
+
+Zset：排行榜功能；存储带权重的任务队列。
+
+hash：存储用户信息，用户的属性作为哈希字段。
 
 # redis相关数据结构，为什么每种数据类型一般都有两种数据结构？（哈啰）
 为了满足不同场景，比如List可以用linkedlist和ziplist。
@@ -838,6 +916,15 @@ redis sentinel当主节点故障时，会进行故障转移，选举新的主节
 
 范围分片：根据键值范围将数据分配到不同实例上。
 
+# redis zset listpack和跳表的区别？什么时候用哪一种？redis为什么用跳表不用红黑树？（阿里）
+listpack是紧凑的列表结构，元素之间通过指针或偏移量连接。
+
+跳表是有序的数据结构，通过多级索引实现快速查找。
+
+listpack在元素少的时候用，多的用跳表。
+
+跳表实现简单。
+
 # zset的时间复杂度是什么？
 # 跳表的时间复杂度？（作业帮）
 
@@ -858,6 +945,7 @@ zset如果元素比较多，那么用跳表实现，跳表的增删查的时间�
 
 # 如何保证缓存和数据库数据的一致性？（腾讯）
 # MySQL和redis如何保证数据一致性？（京东，携程，得物多次考，作业帮多次考，58同城，满帮，字节）
+# redis处理数据读取不一致问题，如果出现异常我们不从数据库事务的角度 如何解决？（滴滴）
 
 采用Cache Aside Pattern（旁路缓存模式）是个不错的选择，主要操作是在数据库更新后直接删除缓存，并通过增设缓存更新重试机制来处理缓存删除失败的情况，确保数据一致性。
 
@@ -865,7 +953,7 @@ zset如果元素比较多，那么用跳表实现，跳表的增删查的时间�
 
 延迟双删：先删除redis，再更新数据库，最后再删除一次redis数据。
 
-消息队列异步更新：用Kafka或rocketMQ异步更新redis。
+消息队列异步更新：binlog记录更改，生成数据库变更信息存入rocketMQ，用缓存更新服务，订阅rocketMQ特定主题，接收并处理这些变更消息。
 
 # 先修改数据库，再删除redis仍然有不一致怎么办？（腾讯）
 只能保证最终一致性。如果需要强一致性，可以用刚性事务如2PC，3PC，确保数据库和redis的操作是原子性的。
@@ -1089,8 +1177,8 @@ finally用于定义无论是否发生异常都会执行的代码块。
 
 # cas了解吗？原理是什么？（快手，小红书）
 # CAS如何解决ABA问题？（百度）
-
-很多地方用到了cas，比如Concurrenthashmap采用cas和Synchronized保证并发安全。cas的原理是**unsafe**类中的native方法**compareandswapobjecct**实现，它调用本地代码来做，和具体操作系统和cpu密切相关。cas存在aba问题，一个值原来是a，变成了b，又变回了a，cas是检查不出来变化的，但实际上被更新了两次，
+# CAS跟哪个CPU底层的指令有关系吗？（快手）
+很多地方用到了cas，比如Concurrenthashmap采用cas和Synchronized保证并发安全。cas的原理是**unsafe**类中的native方法**compareandswapobjecct**实现，它调用本地代码来做，和具体操作系统和cpu密切相关，比如x86架构的cmpxchg指令。cas存在aba问题，一个值原来是a，变成了b，又变回了a，cas是检查不出来变化的，但实际上被更新了两次。
 
 aba问题通过加上版本号或者时间戳解决。
 
@@ -1098,7 +1186,7 @@ aba问题通过加上版本号或者时间戳解决。
 
 时间戳：记录每次修改的时间。cas操作时，同时比较数据的值和时间戳。
 
-# 线程池处理任务的流程了解吗？（介绍一下线程池工作流程）（讯飞，阿里考过，满帮多次考，腾讯多次考）
+# 线程池处理任务的流程了解吗？（介绍一下线程池工作流程）（讯飞，阿里考过，满帮多次考，腾讯多次考，快手）
 
 提交一个任务，如果**核心线程没有满**，就创建一个线程，如果满了，就是会加入等待队列，如果**等待队列满了**，就会增加线程，如果**达到最大线程数量**，就会按照一些丢弃的策略进行处理。
 
@@ -1144,8 +1232,68 @@ Java内存区域包含五个部分，虚拟机栈，本地方法栈，程序计�
 
 为什么不推荐内置的线程池，如FixedThreadPool，他用了无界队列，如果提交过快，任务会无限积压，导致OOM错误。推荐使用ThreadPoolExecutor自定义线程池，指定核心数，最大线程数，饱和策略。
 
-# 内置线程池有哪些？（百度）
+# 内置线程池有哪些？（百度，快手）
 fixedthreadpool，数量线程固定的线程池。singlethreadexecutor，只有一个线程的线程池。cachedthreadpool，可以根据实际情况调整线程数量的线程池，若所有线程都在工作，又有新任务提交，则会创建新的线程处理任务。scheduledthreadpool，定期执行任务的线程池。
+
+# 定时线程池，他是周期性执行这个任务，他这种机制底层怎么做的？（京东）
+定时线程池通过scheduledThreadPoolExecutor类实现，继承自threadpoolExecutor。
+
+delayedWorkQueue：特殊的队列，基于堆，存储定时任务，按照任务的执行时间排序。
+
+周期任务调度：当一个任务被提交时，他会计算任务首次执行时间，并放到这个队列中。任务执行后，会重新计算下次执行时间，再放到队列中。
+
+任务的提交：当调用 scheduleAtFixedRate 或 scheduleWithFixedDelay 方法时，任务会被包装成一个 ScheduledFutureTask，并计算首次执行时间。
+
+```java
+ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+// 每5秒执行一次任务
+executor.scheduleAtFixedRate(() -> {
+    System.out.println("Task executed at: " + new Date());
+}, 0, 5, TimeUnit.SECONDS);
+```
+
+# 在开发者时候，可能我们的任务要产生任务b，然后任务 a 的往下执行可能要依赖任务 b 的结果。那如果说我把这两个任务都扔给线程池的话，它会出现什么样的问题（京东）
+可能进入死锁，任务a在等待任务b的结果，而任务b无法获得执行的线程。
+
+```java
+// 创建一个固定大小为1的线程池
+ExecutorService executor = Executors.newFixedThreadPool(1);
+// 提交任务 B
+Callable<String> taskB = () -> {
+    System.out.println("任务 B 开始执行");
+    Thread.sleep(2000); // 模拟耗时操作
+    System.out.println("任务 B 执行完成");
+    return "结果 B";
+};
+// 提交任务 A，任务 A 依赖于任务 B 的结果
+Callable<String> taskA = () -> {
+    System.out.println("任务 A 开始执行，等待任务 B 的结果");
+    Future<String> futureB = executor.submit(taskB);
+    String resultB = futureB.get(); // 阻塞等待任务 B 完成
+    System.out.println("任务 A 获取到任务 B 的结果: " + resultB);
+    return "结果 A";
+};
+// 提交任务 A
+Future<String> futureA = executor.submit(taskA);
+try {
+    // 获取任务 A 的结果
+    String resultA = futureA.get();
+    System.out.println("任务 A 执行完成，结果: " + resultA);
+} catch (InterruptedException | ExecutionException e) {
+    e.printStackTrace();
+} finally {
+    executor.shutdown();
+}
+```
+
+# 线程池内部，它其实每个线程都是一个worker，你能说这个 worker 他去执行任务的一个逻辑是什么样的？每个线程它都有一个 run 方法，run 里面的内部底层执行逻辑是什么样的？(京东)
+用一个while循环，跳出条件是isRunning为false。
+
+用taskQueue take方法获取任务，如果队列为空，阻塞。
+
+执行获取到的任务的run方法。
+
+捕获异常。
 
 # 实现 Runnable 接⼝和 Callable 接⼝的区别（58同城）
 
@@ -1199,6 +1347,80 @@ await方法：主线程调用，等待状态，直到计数器值变零。
 用cyclicBarrier：一组线程相互等待。
 
 用ExecutorService和Future：主线程提交任务给ExecutorService，用Future的get方法获取任务执行结果。
+
+# 对于futuretask，还有一些带回调的future。然后这些 future，如果线程池没有处理完，主线程去 get 的时候可能会进行阻塞，你能把它内部阻塞的一个机制能说一下吗（京东）
+获取锁：主线程进入get方法时，会获取锁保证安全。
+
+检查状态：如果任务没完成，主线程调用wait方法，进入等待态，释放锁。
+
+任务完成：工作线程完成任务后，获取锁，设置结果，调用notifyAll方法，唤醒等待这个锁的线程。
+
+恢复执行：被唤醒的主线程重新获取锁，检查任务状态，已完成，返回结果。
+
+```java
+public V get() throws InterruptedException, ExecutionException {
+    synchronized (this) {
+        while (!isDone()) {
+            wait(); // 主线程进入等待状态
+        }
+        // 返回结果或抛出异常
+        if (isCancelled()) {
+            throw new CancellationException();
+        }
+        return result;
+    }
+}
+protected void done() {
+    synchronized (this) {
+        notifyAll(); // 任务完成后，唤醒所有等待线程
+    }
+}
+```
+
+# 两个子线程正在运行，想要在主线程用future的get获取更早结束的线程的结果。（拼多多）
+用completableFuture，用cf supplyAsync方法提交两个任务，用cf anyOf返回一个先完成的结果。
+<!-- ```java
+ExecutorService executor = Executors.newFixedThreadPool(2);
+try {
+    // 定义第一个任务，模拟耗时2秒
+    CompletableFuture<String> future1 = CompletableFuture.supplyAsync(() -> {
+        try {
+            Thread.sleep(2000); // 模拟任务1耗时
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "任务1被中断";
+        }
+        return "任务1完成";
+    }, executor);
+    // 定义第二个任务，模拟耗时1秒
+    CompletableFuture<String> future2 = CompletableFuture.supplyAsync(() -> {
+        try {
+            Thread.sleep(1000); // 模拟任务2耗时
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "任务2被中断";
+        }
+        return "任务2完成";
+    }, executor);
+    // 使用 CompletableFuture.anyOf 等待任意一个任务完成
+    CompletableFuture<Object> firstCompleted = CompletableFuture.anyOf(future1, future2);
+    // 获取第一个完成的结果
+    String result = (String) firstCompleted.get();
+    System.out.println("获取到的结果: " + result);
+    // 取消尚未完成的任务
+    if (!future1.isDone()) {
+        future1.cancel(true);
+    }
+    if (!future2.isDone()) {
+        future2.cancel(true);
+    }
+} catch (InterruptedException | ExecutionException e) {
+    e.printStackTrace();
+} finally {
+    // 关闭线程池
+    executor.shutdown();
+}
+``` -->
 
 # CyclicBarrier 有什么⽤？原理是什么？
 
@@ -1272,7 +1494,7 @@ TransmittableThreadLocal，他是阿里巴巴开源工具，解决线程池中�
 
 分代回收算法:分代收集是将内存划分成了新生代和老年代。分配的依据是对象的生存周期，或者说经历过的 GC 次数。对象创建时，一般在新生代申请内存，当经历一次 GC 之后如果对还存活，那么对象的年龄 +1。当年龄超过一定值(默认是 15，可以通过参数 -XX:MaxTenuringThreshold 来设定)后，如果对象还存活，那么该对象会进入老年代。
 
-# 什么时候会OOM，OOM怎么排查？（美团，网易重要，度小满，得物，满帮）
+# 什么时候会OOM，OOM怎么排查？（美团，网易多次考，度小满，得物，满帮，快手）
 识别OOM发生的时间和场景，是系统刚启动时，
 还是在处理大量请求时？
 是在某个特定的业务逻辑中，
@@ -1283,6 +1505,26 @@ TransmittableThreadLocal，他是阿里巴巴开源工具，解决线程池中�
 分析代码和内存使用情况。比如在使用java集合类时，没有及时调用clear方法，可能导致集合对象一直占用内存。
 
 优化内存管理。我们要对代码进行优化，比如用软引用或弱引用管理不怎么重要的对象，避免占用过多内存。
+
+注：添加-XX:+HeapDumpOnOutOfMemoryError启动参数，查看heapdump。
+
+<!-- ```java
+public static void main(String[] args) throws InterruptedException {
+        List<byte[]> dataList = new ArrayList<>();
+
+        while (true) {
+            // 模拟不断地往集合中添加数据，每个数据大小为 1MB
+            byte[] data = new byte[1024 * 1024];  // 1MB
+            dataList.add(data);
+
+            // 你可以在这里加一个条件来模拟一定时间后出现OOM
+            if (dataList.size() % 1000 == 0) {
+                System.out.println("Current list size: " + dataList.size());
+                Thread.sleep(1000);  // 每秒打印一次当前列表大小，模拟不断增长的内存占用
+            }
+        }
+    }
+``` -->
 
 # Java内存泄漏怎么排查？（阿里）
 内存泄漏是程序运行中，由于某些对象不再使用但未被垃圾回收器回收，导致内存占用不断增加，最终可能导致系统性能下降。
@@ -1295,8 +1537,19 @@ TransmittableThreadLocal，他是阿里巴巴开源工具，解决线程池中�
 
 检查JVM参数：可以帮助我们分析内存使用情况。可以通过-XX:+HeapDumpOnOutOfMemoryError参数，在溢出时生成内存快照。还可以通过-XX:+PrintGCDetails打印GC日志。
 
-# 线上的项目CPU异常飙高怎么排查解决？（得物多次考，百度，shopee，阿里，腾讯）
+# 线上的项目CPU异常飙高怎么排查解决？（得物多次考，百度，shopee，阿里，腾讯，滴滴，网易）
 线程分析。使用jstack工具，生成线程转储thread dump，分析哪些线程占用了大量CPU资源，查看高CPU线程的堆栈跟踪，定位到具体代码行。
+
+注：jstack 1234 > thread_dump.txt，分析文本。
+
+```bash
+"Thread-1" #6 prio=5 os_prio=0 tid=0x00007fd539501800 nid=0x2f85 runnable [0x00007fd53960f000]
+   java.lang.Thread.State: RUNNABLE
+    at com.example.MyService.calculateImportantData(MyService.java:120)
+    at com.example.MyService.processData(MyService.java:70)
+    at com.example.MyService.run(MyService.java:35)
+    at java.lang.Thread.run(Thread.java:750)
+```
 
 # JVM内存模型哪些区域会OOM？（得物，shopee，腾讯）
 堆内存：当Eden区满时，会触发minor gc，当老年代满时，会触发Full gc。如果gc后仍然无法为新对象分配足够空间，就会抛出OOM。
@@ -1395,7 +1648,7 @@ CMS的过程，初始标记，并发标记，重新标记，并发清除。
 
 重新标记。在并发标记时，应用线程可能会修改对象图，为了确保标记准确，CMS要在并发标记后进行一次所有应用线程暂停的重新标记。
 
-# CMS和G1垃圾收集器区别？（小红书）
+# CMS和G1垃圾收集器区别？（小红书，拼多多）
 内存布局。
 CMS使用传统分代内存布局，分为新生代和老年代。
 G1将堆分为多个相等大小的区域region，每个区域可以是新生代或老年代。
@@ -1523,6 +1776,22 @@ zadd记录当前请求时间戳。
 
 校验和，tcp在每个数据包中都包含一个校验和，检测数据包在传输过程中是否发生了错误。如果接收方检测到错误，他会丢弃该数据包，并要求发送方重新发送。
 
+注：
+
+拥塞控制：
+
+拥塞窗口控制发送方可以发送的数据量。
+
+慢启动：每收到一个确认，窗口大小翻倍。
+
+拥塞避免：当拥塞窗口达到慢启动阈值，窗口大小不翻倍，而是线性增长。
+
+快速重传：发送方连续收到三个重复的确认，认为有数据包丢失，立即重传。进入快速恢复阶段，将拥塞窗口减半。
+
+超时重传：如果发送方一定时间内未收到确认，进行重传，重新进入慢启动。
+
+拥塞控制算法：TCP reno，TCP Tahoe，BBR（Bottleneck Bandwidth and Round-trip propagation time）。
+
 # HTTP 报文的内容简单说⼀下！ HTTP 请求报⽂和响应报⽂中有哪些数据？（shopee）
 
 请求报文，包含请求行，请求头部，空行，请求体。
@@ -1544,6 +1813,7 @@ zadd记录当前请求时间戳。
 # Linux中的epoll和select这些多路复用了解过吗？（腾讯多次考，百度，难）
 # select poll epoll的区别？（得物）
 # IO多路复用模型（shopee多次考）
+# epoll为什么快？（腾讯）
 多路复用。多路复用允许一个进程同时监视多个文件描述符如网络套接字，并在其中任何一个准备好读取或写入时通知进程。
 
 select系统调用是linux最早的多路复用机制之一。允许我们监视多个文件描述符，等待其中一个准备好进行io操作。select时间复杂度是O n，其中n是文件描述符数量。

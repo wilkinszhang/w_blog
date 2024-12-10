@@ -1,15 +1,9 @@
 # redis
 
-# bigkey的缺点是什么？
-内存占用高，bigkey也会**占用大量内存空间**，导致内存碎片增加，影响redis性能，对于bigkey的操作**可能导致redis实例阻塞**，比如del命令删除一个bigkey可能导致redis实例一段时间内无法响应其他客户端请求。
-
-# redis bigkey怎么解决？
-对bigkey进行**拆分**，如将有数万成员的hash key拆分为多个hash key，并保证每个key成员数量在合理范围。对过期数据进行**定期清理**。
-
 # 什么是热key？（作业帮）
 指某个key**被请求的频率很高**，比如一个redis实例总qps为1万，而其中一个key的qps达到了7千。
 
-# redis如何确定一个key是热key（小红书）
+# redis如何确定一个key是热key（小红书，阿里）
 参考。
 监控访问频率。用redis的monitor命令或slowlog命令，监控key访问频率。
 
@@ -22,7 +16,7 @@ redis的lru机制。lru可以帮助识别最近最少使用的key。
 结合业务逻辑。某些key可能天生就是热点key，比如用户登录token，热门商品信息比如百亿补贴商品。
 
 # 对于特别火的热key，要如何存储？（腾讯）
-# 如何解决热key问题？（作业帮多次考）
+# 如何解决热key问题？（作业帮多次考，拼多多，阿里）
 创建热key的多个**副本**，并把他们**分不到不同的数据分片**，哈希槽，中。
 
 # 如果一个数据已经在redis中，突然成为热点key，该怎么办？（京东，网易）
@@ -60,3 +54,72 @@ redis的lru机制。lru可以帮助识别最近最少使用的key。
 网络
 # 说一下tcp的头部。
 源端口号，目的端口号，序列号和确认应答号。序列号解决网络包乱序问题，确认应答号解决丢包问题。
+
+# 看MySQL的锁。
+```sql
+select * from performance_schema.data_locks\G;
+```
+
+如果 LOCK_MODE 为 X，说明是 next-key 锁；
+如果 LOCK_MODE 为 X, REC_NOT_GAP，说明是记录锁；
+如果 LOCK_MODE 为 X, GAP，说明是间隙锁；
+
+id     1        5       10      15      20
+name   lufei    suol    shan    wu      xiang
+age    19       21      22      20      39
+
+select * from user where id > 15 for update;
+锁的情况：
+LOCK_TYPE: RECORD
+LOCK_MODE: X
+LOCK_STATUS: GRANTED
+LOCK_DATA: supremum pseudo-record
+(20,+inf]
+
+
+LOCK_TYPE: RECORD
+LOCK_MODE: X
+LOCK_STATUS: GRANTED
+LOCK_DATA: 20
+(15,20]
+
+select * from user where id >= 15 for update;
+锁的情况：
+LOCK_TYPE: RECORD
+LOCK_MODE: X,REC_NOT_GAP
+LOCK_STATUS: GRANTED
+LOCK_DATA: 15
+15
+
+LOCK_TYPE: RECORD
+LOCK_MODE: X
+LOCK_STATUS: GRANTED
+LOCK_DATA: supremum pseudo-record
+(20,+inf]
+
+
+LOCK_TYPE: RECORD
+LOCK_MODE: X
+LOCK_STATUS: GRANTED
+LOCK_DATA: 20
+(15,20]
+
+select * from user where id < 6 for update;
+锁的情况：
+LOCK_TYPE: RECORD
+LOCK_MODE: X
+LOCK_STATUS: GRANTED
+LOCK_DATA: 1
+(-inf,1]
+
+LOCK_TYPE: RECORD
+LOCK_MODE: X
+LOCK_STATUS: GRANTED
+LOCK_DATA: 5
+(1,5]
+
+LOCK_TYPE: RECORD
+LOCK_MODE: X,GAP
+LOCK_STATUS: GRANTED
+LOCK_DATA: 10
+(5,10)

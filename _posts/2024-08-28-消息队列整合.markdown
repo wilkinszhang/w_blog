@@ -59,7 +59,7 @@ Broker和topic是多对多关系，一个topic可以跨越多个Broker。
 
 生产消息，存储消息和消费消息。生产消息阶段生产者应妥善处理Broker的响应。如果Broker返回写入失败，**生产者应重试发消息**。存储消息阶段，**Broker应在消息成功刷盘后再向生产者发送确认响应**，避免消息在仅写入内存未持久化由于系统崩溃导致的数据丢失。在集群环境中，消息不仅要写入原始Broker还应**写入至少一个副本**。消费消息阶段，消费者在接收到消息并成功处理业务逻辑后确认，不应在仅将消息放入内存队列后就认为消费成功。
 
-# kafka如何保证高吞吐的？它是如何保证消息不丢失的？(阿里考过，得物)
+# kafka如何保证高吞吐的？它是如何保证消息不丢失的？(阿里考过，得物，拼多多)
 # kafka怎么保证数据一致？/kafka如何保证可靠传输？（百度）
 # kafka底层做了哪些优化让他如此高性能？（shopee）
 # kafka消息丢失的问题？（腾讯）
@@ -68,7 +68,7 @@ Broker和topic是多对多关系，一个topic可以跨越多个Broker。
 批量处理，kafka支持批量发送和接收消息。
 
 不丢失的保证。持久化存储，kafka将消息持久化到磁盘，即使服务器宕机消息也不丢失。
-副本机制。kafka每个分区都有多个**副本**，其中一个副本是领导者，其他副本是追随者，如果领导者失败，追随者可以接管。
+副本机制。kafka每个分区都有多个**副本**，其中一个副本是**领导者**，其他副本是**追随者**，如果领导者失败，追随者可以接管。
 **ack**机制。kafka提供不同的ack级别，生产者选择不同的ack级别保证消息可靠。如ack为all表示所有副本都确认收到消息后生产者才认为消息发送成功。
 
 # kafka丢消息如何发现？（腾讯）
@@ -109,6 +109,29 @@ while (true) {
 
 # kafka消费者数量大于分区数量会出现什么情况？（腾讯）
 消费者闲置：因为他们没有分配到任何分区。
+
+# kafka同一个消费者组中消息是顺序的吗？（滴滴）
+不是顺序的。
+
+在一个分区内，消息是按照顺序消费的。
+
+跨分区的消息顺序：如果消息分布在不同分区中，kafka不保证顺序。同一个消费者组中不同消费者可能会同时消费不同分区的消息。
+
+<!-- ```java
+// 生产者示例代码
+Properties props = new Properties();
+props.put("bootstrap.servers", "localhost:9092");
+props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+Producer<String, String> producer = new KafkaProducer<>(props);
+// 发送消息到指定分区
+ProducerRecord<String, String> record = new ProducerRecord<>("my-topic", 0, "key", "message");//分区0
+producer.send(record);
+producer.close();
+``` -->
+
+# 消息队列中间件如何选型？（阿里巴巴）
+性能要求：消息队列的吞吐量和延迟是关键指标。kafka在高吞吐量（QPS）场景表现优异，rocketMQ在低延迟（毫秒）和可靠性表现更突出。
 
 # 讲一讲rocketMQ支持事务消息吗？怎么做的？（网易）
 事务消息流程。

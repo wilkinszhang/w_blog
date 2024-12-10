@@ -5,8 +5,8 @@
 SQL 标准定义了四个事务隔离级别：READ-UNCOMMITTED（读未提交），READ-COMMITTED，RC（读已提交），REPEATABLE-READ，RR（可重复读），和 SERIALIZABLE（可串行化），这些级别逐步增强了事务操作的隔离性，减少了并发操作中的问题如脏读、不可重复读和幻读。默认可重复读。
 
 # MySQL默认的隔离级别是什么？（字节）
-
-REPEATABLE-READ（可重复读）。可重复读可以解决**大部分**幻读问题，用快照读和当前读。快照读通过mvcc解决了幻读，当前读通过记录锁+间隙锁解决了幻读。
+# 讲讲幻读（字节）
+REPEATABLE-READ（可重复读）。可重复读可以解决**大部分**幻读问题，用快照读和当前读。快照读通过**mvcc**解决了幻读，当前读通过**记录锁+间隙锁**解决了幻读。
 
 # 解释一下幻读？什么时候会发生幻读？（58同城）
 幻读：在一个事务中，两次查询同一个范围的数据，第二次查询返回了第一次查询中不存在的行，或者第一次查询存在的行在第二次查询中消失了。
@@ -28,28 +28,46 @@ A用update修改id为x的数据。
 
 A事务读取id为x的数据，发现可以读到，发生了幻读。
 
-# 联合索引使用情况判断。（百度，作业帮，哈啰，猿辅导）
+# 第一类丢失更新和第二类丢失更新（京东）
+第一类：两个事务同时读取同一数据修改，后提交的事务会覆盖先提交事务的修改。假设事务A和事务B同时读取了数据X的值为10，然后事务A将X的值修改为15并提交，接着事务B将X的值修改为20并提交。最终，X的值为20，事务A的修改被覆盖。
+
+第二类：第一个事务读取数据，另一个数据修改了数据并提交，然后第一个事务基于旧数据修改并提交，第二个事务的修改丢失。假设事务A读取了数据X的值为10，然后事务B将X的值修改为20并提交。接着，事务A基于旧值10将X的值修改为15并提交。最终，X的值为15，事务B的修改被覆盖。
+
+解决方法：悲观锁：在读取数据加锁，用select for update。
+
+乐观锁：提交时检查数据是否被修改，修改则回滚。用版本号或时间戳。
+
+# 数据库是否了解插入缓冲？（滴滴）
+在数据库中，插入操作涉及到索引更新。如果索引是非聚集索引，更新会进行随机写入，导致性能瓶颈。插入缓冲将插入操作缓存，减少了随机写入次数。
+
+# 联合索引使用情况判断。（百度，作业帮，哈啰，猿辅导，快手）
 create table myTest2 (a int, b int, c int, KEY suoyin(a, b, c));
 
 explain select * from myTest2 where a=3 and b=5 and c=6;走联合索引
 
-explain select * from myTest2 where c=6 and b=5 and a=3;走索引，MySQL优化器会自动调整顺序。
+explain select * from myTest2 where c=6 and b=5 and a=3;走索引，MySQL优化器会自动调整顺序。（**拼多多**）
 
-explain select b, a from myTest;不命中索引，索引扫描。（**字节**）
+explain select b, a from myTest;不命中索引，主键索引树扫描index。（**字节**）
 
-explain select * from myTest2 where a=3 and c=6;会走联合索引，但应该属于**索引截断**。（**满帮**）
+explain select * from myTest2 where a=3 and c=6;会走联合索引，但应该属于**索引截断**，非主键唯一索引等值扫描ref。**c没有走索引**（**满帮**）
 
-explain select * from myTest2 where b=5 and c=6;不命中索引，索引扫描
+EXPLAIN SELECT  * FROM example_table WHERE a = 3 AND b = 1 AND c > 2;范围扫描range。**c走索引**
 
-explain select * from myTest2 where a=3 and b>5 and c=6;由于b用到了范围查询，所以只用到了(a,b)联合索引，发生了索引树扫描，没有命中c的索引。
+EXPLAIN SELECT  * FROM example_table WHERE b = 1 AND c > 2 AND a = 3;范围扫描range。**c走索引，索引下推。**（快手）
 
-explain select * from myTest2 where a=3 order by b asc;走联合索引。
+EXPLAIN SELECT * FROM users WHERE age IN (20, 25, 30); 范围扫描range，索引下推，走索引（阿里）
 
-explain select * from myTest2 where a=3 order by c asc;走联合索引，Using filesort指定的排序和索引排序不一致。
+explain select * from myTest2 where b=5 and c=6;不命中索引，索引树扫描index
+
+explain select * from myTest2 where a=3 and b>5 and c=6;由于b用到了范围查询，所以只用到了(a,b)联合索引，发生了索引树扫描index，**c不走索引**
+
+explain select * from myTest2 where a=3 order by b asc;走联合索引，非主键唯一索引等值扫描ref。
+
+explain select * from myTest2 where a=3 order by c asc;走联合索引，非主键唯一索引等值扫描ref，Using filesort指定的排序和索引排序不一致。
 
 explain select * from myTest2 where b=5 order by a asc;发生了索引树扫描
 
-explain select * from myTest2 where a=3 and b=5 or b=4 and c=1;逻辑运算符AND优先级高于OR，发生了索引树扫描
+explain select * from myTest2 where a=3 and b=5 or b=4 and c=1;逻辑运算符AND优先级高于OR，发生了索引树扫描index
 
 口诀：左匹配，顺序定；范围截断后续停。
 
@@ -63,7 +81,11 @@ explain select * from myTest2 where a=3 and b=5 or b=4 and c=1;逻辑运算符AN
 
     AND 优先 OR，复杂条件易导致索引树扫描。
 
-（1）system：系统表，少量数据，往往不需要进行磁盘IO；（2）const：常量连接；（3）eq_ref：主键索引(primary key)或者非空唯一索引(unique not null)等值扫描；（4）ref：非主键非唯一索引等值扫描；（5）range：范围扫描；（6）index：索引树扫描；（7）ALL：全表扫描(full table scan)；
+Type连接类型（1）system：系统表，少量数据，往往不需要进行磁盘IO；（2）const：常量连接；（3）eq_ref：主键索引(primary key)或者非空唯一索引(unique not null)等值扫描；（4）ref：非主键非唯一索引等值扫描；（5）range：范围扫描；（6）index：索引树扫描；（7）ALL：全表扫描(full table scan)；
+
+Key实际用到的索引
+
+Ref哪些列或常数与索引一起使用
 
 Extra列
 Using filesort按文件排序，一般是在指定的排序和索引排序不一致的情况才会出现。
@@ -74,14 +96,26 @@ Using where表示使用了where条件过滤。
 
 Using temporary表示是否使用了临时表，一般多见于order by 和 group by语句。
 
-# MySQL有哪些常见的索引？（腾讯）
+# MySQL判断哪个查询速度更快？（滴滴）
+```SQL
+  select * from student where name like "wu%";
+  select * from student where name like "%wu";
+  select name from student where name like "wu%";
+```
+第三个最快，第一个其次，第二个最慢。
+
+第三个：索引范围扫描，用覆盖索引，用where条件过滤。
+
+第一个：索引范围扫描，用覆盖索引，用where条件过滤。
+
+第二个：全索引扫描，用覆盖索引，用where条件过滤。
+
+# MySQL有哪些常见的索引？（腾讯，携程）
 B+树索引：适用于等值查询，范围查询，前缀查询。
 
 哈希索引：只支持等值查询。
 
 全文索引：用于文本数据，模糊搜索。
-
-空间索引：地理空间数据。
 
 R树索引：多维索引，用于地理信息系统。
 
@@ -112,14 +146,31 @@ orderby：列数据进行排序。
 
 在语义相同，没有索引情况下，distinct效率高于groupby。原因是distinct和groupby都会进行分组操作，但groupby可能先进行排序，触发filesort，导致性能下降。
 
-# 建数据库有什么原则？（百度）
+# 建数据库有什么原则？（百度，拼多多）
 三大范式。
 
-# 事务怎么实现的？（拼多多，百度）
+第一范式，所有字段值都是不可分解的原子值。
+
+第二范式，数据库表中的每一列都和主键相关，而不能只与主键的某一部分相关。
+
+第三范式，数据表中的每一列数据都和主键直接相关，而不能间接相关。
+
+# 事务怎么实现的？（拼多多，百度，快手）
 # MySQL怎么保证原子性？（得物）
+# 事务四大特性的实现原理（京东）
+# MySQL如何保证不丢失？（快手）
 原子性，事务所有操作要么全部成功要么全部失败，mysql通过undolog实现。
 
-事务有四个隔离级别，读未提交，读已提交，可重复读，串行化。
+一致性：保证事务执行前后，数据库状态保持一致。通过数据库约束和隔离级别实现。事务有四个隔离级别，读未提交，读已提交，可重复读，串行化。
+
+隔离性：并发的多个事务互不干扰。通过锁和MVCC实现隔离性。
+
+持久性：事务提交，结果将永久保存在数据库。通过redolog保证。
+
+# MySQL binlog和redolog写顺序（字节）
+两阶段提交：第一阶段，redolog标记为prepare状态，第二阶段，binlog写入完成后，redolog标记为commit状态。
+
+先写redolog再写binlog。
 
 # MySQL怎么实现数据恢复？（得物）
 备份恢复：定期备份数据库。全量备份，增量备份，差异备份。
@@ -137,7 +188,7 @@ A正常提交，最终金额为A先修改B后修改的值。事务B在可重复�
 
 间隙锁用于防止幻读，幻读是在一个事务中，多次查询同一范围数据，结果集却不同的情况。间隙锁锁定一个范围。比如执行**范围查询**select 某某 where id >10 and id<20时，数据库会自动对10到20的返回加间隙锁，防止插入新数据。
 
-# 行锁的本质是什么？锁的是什么？如果修改的字段上没有索引，行锁还能用吗（58同城）
+# 行锁的本质是什么？锁的是什么？如果修改的字段上没有索引，行锁还能用吗（58同城，滴滴）
 锁定的是索引。
 
 没有索引，会全表扫描，会对所有记录加临键锁，相当于把整个表锁住了。
@@ -189,6 +240,11 @@ select for update 分情况。如果是主键字段则加行锁。如果是唯�
 当其他事务插入一条 age=39，id=3的记录的时候，在二级索引树上定位到插入的位置，而该位置的下一条是 id = 20、age= 39 的记录，正好该记录的二级索引上有间隙锁，所以这条插入语句会被阻塞，无法插入成功。
 当其他事务插入一条 age=39，id=21 的记录的时候，在二级索引树上定位到插入的位置，而该位置的下一条记录不存在，也就没有间隙锁了，所以这条插入语句可以插入成功。
 
+# select * from user where userid=5 for update，假如userid是索引但是没有5这个数据，锁的是什么？假如没有索引也没有5这个数据，锁的是什么？（快手）
+临键锁，锁定userid索引范围，(-inf,+inf]。
+
+临键锁，锁定主键索引范围，(-inf,+inf]。
+
 # 如果A是非唯一索引，表里只有"A=1"和"A=10"两条数据，此时有两条命令："SELECT * FROM ... WHERE A=5 FOR UPDATE"；"SELECT * FROM ... WHERE A=6 FOR UPDATE"。请问这两条命令会互斥吗，什么时候互斥、什么时候不互斥？（得物）
 会互斥，锁定的数据是10, 2。如果他们执行插入命令有一个会阻塞。
 
@@ -223,6 +279,34 @@ select默认是快照读，update是当前读。
 MVCC：快照。
 
 日志：redolog保证持久性，undolog保证原子性。
+
+# MySQL双写（字节）
+双写是innodb引擎保证数据页完整性的机制。解决数据页部分写入问题。
+
+原理：当innodb要将数据页写入磁盘时，先将数据页复制到双写缓冲区中，然后innodb分两次将缓冲区数据写入磁盘双写区域。最后innodb再将数据页写入到表空间最终位置。
+
+可以配置innodb_doublewrite启用。
+
+# SQL注入（腾讯）
+攻击者通过在应用程序输入字段中插入恶意SQL代码，操作数据库查询。
+
+如何防止：
+
+用预编译语句：将用户输入作为参数处理。
+
+输入验证。
+
+最小权限原则。
+
+<!-- ```java
+// 不安全的SQL查询，容易受到SQL注入攻击
+String unsafeQuery = "SELECT * FROM users WHERE username = '" + userInput + "';";
+// 安全的SQL查询，使用预编译语句防止SQL注入
+String safeQuery = "SELECT * FROM users WHERE username = ?;";
+PreparedStatement pstmt = connection.prepareStatement(safeQuery);
+pstmt.setString(1, userInput);//把用户的输入当做字符串处理
+ResultSet rs = pstmt.executeQuery();
+``` -->
 
 # MySQL支持哪些存储引擎，默认使用哪个？
 
@@ -404,6 +488,11 @@ get(key)，put(key,value)时间复杂度为O 1。
 
 哈希表快速查找链表节点。
 
+# LRU为什么要双向链表？能不能是队列？（快手）
+存储在双向链表中的数据，可能要把这个数据删除，删除节点要获取前驱节点，如果不是双向链表，就得从头遍历。
+
+可以是队列，但是删除时间复杂度高。
+
 # 过期数据的删除**策略**了解吗？（得物，shopee）
 
 Redis通过结合惰性删除和定期删除的策略来管理过期的数据：惰性删除在数据被访问时检查并删除过期数据，而定期删除则定时检查并清理一批过期数据，以平衡内存使用和CPU消耗。
@@ -433,7 +522,10 @@ no：写命令会写入AOF文件，不会主动同步到磁盘，由操作系统
 # AOF重写了解吗？（shopee）
 # AOF你觉得怎么优化？（shopee）
 # AOF文件过大怎么办？（作业帮）
-通过在 Redis 服务器运行期间读取当前数据库中的键值对并创建一个更紧凑的新 AOF 文件来完成的，同时使用 **AOF 重写缓冲区**捕获在这个过程中发生的所有写操作，确保数据的完整性和一致性，最终用新的 AOF 文件替换旧的文件以减少空间占用。AOF重写并没有对AOF有任何操作，他自己的名字是有歧义的，新的AOF文件更小是因为如多次Set值的命令，AOF重写会优化成只有一个Set值命令，保存最终的值。
+# AOF的写回策略？（拼多多）
+通过在 Redis 服务器运行期间读取当前数据库中的键值对并创建一个更紧凑的新 AOF 文件来完成的，同时使用 **AOF 重写缓冲区**捕获在这个过程中发生的所有写操作，确保数据的完整性和一致性，最终用新的 AOF 文件替换旧的文件以减少空间占用。新的AOF文件更小是因为如多次Set值的命令，AOF重写会优化成只有一个Set值命令，保存最终的值。
+
+<!-- AOF重写并没有对AOF有任何操作，他自己的名字是有歧义的， -->
 
 # redis宕机选哪个持久化方式？（腾讯）
 数据一致性要求较高：用AOF。
@@ -442,7 +534,7 @@ no：写命令会写入AOF文件，不会主动同步到磁盘，由操作系统
 
 在实际中，通常会结合用RDB和AOF，可以定期执行RDB，在AOF中记录所有写操作。
 
-# 什么是bigkey？怎么解决？（作业帮）
+# 什么是bigkey？怎么解决？（作业帮，阿里）
 
 一个键（key）所对应的值（value）占用的内存非常大，例如，当一个字符串类型的值超过 10 KB 或者一个复合类型的值包含超过 5000 个元素时，这样的键可以被视为 bigkey。
 
@@ -453,6 +545,12 @@ no：写命令会写入AOF文件，不会主动同步到磁盘，由操作系统
 压缩数据：用压缩算法如LZ4对bigkey的值进行压缩。
 
 redis cluster集群：分不到不同节点的槽上，减少单个节点的压力。
+
+# bigkey的缺点是什么？
+内存占用高，bigkey也会**占用大量内存空间**，导致内存碎片增加，影响redis性能，对于bigkey的操作**可能导致redis实例阻塞**，比如del命令删除一个bigkey可能导致redis实例一段时间内无法响应其他客户端请求。
+
+# redis bigkey怎么解决？
+对bigkey进行**拆分**，如将有数万成员的hash key拆分为多个hash key，并保证每个key成员数量在合理范围。对过期数据进行**定期清理**。
 
 # redis内存溢出了，现在有少量bigkey，大量普通key，你怎么**设计**内存淘汰方案？（百度）
 参考。
@@ -466,6 +564,7 @@ redis cluster集群：分不到不同节点的槽上，减少单个节点的压�
 bigkey不能直接淘汰，会导致redis实例阻塞，因此可以设计基于优先级的LRU，bigkey的优先级较低，而普通key的优先级较高。
 
 # redis有一个bigkey你怎么删掉？（shopee）
+# redis hash里有很多数据，但是都要删，可以直接删除吗？（拼多多）
 分批删除：直接删除一个大key可能会导致redis阻塞，因此可以采用分批删除，通过scan命令遍历key的子集，逐个删除。
 
 用unlink命令：redis 4.0引入了unlink命令，他和del命令类似，但不会阻塞redis，unlink会将key从内存中移除，并在后台异步删除。
@@ -500,6 +599,13 @@ public void unlinkBigKey(Jedis jedis, String key) {
 # 怎么解决大量key集中过期问题（怎么解决缓存雪崩问题）
 
 通过设置随机的过期时间来分散 key 过期的时刻，或启用 Redis 4.0 引入的 lazy-free 特性，使用子线程异步释放内存，避免主线程阻塞，从而提高处理客户端请求的响应速度。
+
+# 用什么方式能快速统计网页的访问量（快手）
+# 使用HyberLogLog统计页面UV怎么做？
+
+首先通过**PFADD**命令将每个访问页面的用户ID加入到HyperLogLog中，例如使用PFADD PAGE_1:UV USER1 USER2 ... USERn来添加用户。然后，使用**PFCOUNT** PAGE_1:UV命令统计并返回该页面的估计UV数。PAGE_1:UV是HyberLogLog的名字。HyberLogLog本质是概率计算。
+
+注：统计访问量有三种选型。一，redis hash，用户访问，用hset命令，key是uri，field是用户ID或随机标识，value设置为1。二，redis bitmap，setbit命令，key是uri，field是用户ID，value设置为1。三，概率算法PFADD。
 
 # 分布式缓存常见的技术选型方案有哪些？
 
@@ -549,10 +655,6 @@ SCARD。获取抽奖池中参与者数量，可以用于检查抽奖池是否为
 # 使用Bitmap统计活跃用户怎么做？
 
 首先要为每天的用户活动创建一个Bitmap。每个Bitmap以日期为key，用户ID作为offset。如果用户在某天活跃，就将相应的位设置为1。例如，使用SETBIT 20210308 1 1命令表示用户ID为1的用户在2021年3月8日活跃。为了统计一段时间内的活跃用户数，可以使用BITOP命令进行位运算（例如，使用AND或OR运算）合并多天的数据，然后用BITCOUNT命令统计结果中位为1的数量，得到总的活跃用户数。SETBIT key offset value
-
-# 使用HyberLogLog统计页面UV怎么做？
-
-首先通过**PFADD**命令将每个访问页面的用户ID加入到HyperLogLog中，例如使用PFADD PAGE_1:UV USER1 USER2 ... USERn来添加用户。然后，使用**PFCOUNT** PAGE_1:UV命令统计并返回该页面的估计UV数。PAGE_1:UV是HyberLogLog的名字。HyberLogLog本质是概率计算。
 
 # Redis单线程模型了解吗？
 单线程模型优势。
@@ -619,7 +721,7 @@ AOF（Append Only File）持久化方式在Redis中通过将每一个写操作�
 
 常量池：Java对字符串有特殊优化，如字符串常量池。当创建相同内容字符串时，Java肯只是将他们指向内存中同一个对象。
 
-# concurrentModificationexception是在什么情况下抛出的？（小红书）
+# concurrentModificationexception是在什么情况下抛出的？（小红书，网易）
 当一个线程正在遍历集合时，另一个线程对集合进行了修改，就会抛出这个异常。
 
 # 如果让你实现concurrentModificationexception的代码，你会怎么做？（小红书）
@@ -666,6 +768,9 @@ AOF（Append Only File）持久化方式在Redis中通过将每一个写操作�
 
 short，int， long， double， float， boolean， char和 byte，八种
 
+# Java最小操作的数据单位（拼多多）
+比特，位运算。
+
 # String str1=“abc”和String str2=new String("abc")他们是一样的吗? （滴滴考过，百度）
 
 str1在堆中创建1个对象，在堆中的字符串常量池中**驻留了**str1的引用。其实方法区中也有常量池，但是叫运行时常量池。str2会创建2个对象，并且两个都是在堆中创建的。第三种情况，如果两个代码先后执行，那么str2会创建1个对象。
@@ -693,9 +798,45 @@ char[]数组对象(40字节):
 字段占用 3 字节（short 2 字节，boolean 1 字节）。
 填充了 1 字节，使总大小对齐到 8 字节的倍数。
 
-# 上面提到的String是保存在堆中，什么场景是写栈的？（滴滴考过）
+<!-- # 上面提到的String是保存在堆中，什么场景是写栈的？（滴滴考过）
 
-str 和 str2 存储在栈中的是引用，而实际的 String 对象则保存在堆中。
+str 和 str2 存储在栈中的是引用，而实际的 String 对象则保存在堆中。 -->
+
+# String不可变的好处是什么（滴滴）
+安全：String对象不可被修改，在多线程环境是安全的。
+
+# 如何设计一个不可变类？如果成员变量是集合类型的怎么保证不可变？（快手）
+类申明为final：保证不能被继承，防止子类覆盖方法改变行为。
+
+所有字段声明为private final。
+
+不提供setter方法。
+
+在构造函数中初始化所有字段。
+
+返回字段时用防御性复制：如果字段是可变对象，返回时应该返回副本，防止外部代码通过修改副本影响源对象。
+
+```java
+public final class ImmutableClass {
+    private final int id;
+    private final String name;
+    private final List<String> items;
+    public ImmutableClass(int id, String name, List<String> items) {
+        this.id = id;
+        this.name = name;
+        this.items = new ArrayList<>(items); // 防御性复制
+    }
+    public int getId() {
+        return id;
+    }
+    public String getName() {
+        return name;
+    }
+    public List<String> getItems() {
+        return Collections.unmodifiableList(items); // 返回不可修改的列表
+    }
+}
+```
 
 # Exception和Error区别？（滴滴考过）
 
@@ -706,6 +847,7 @@ Exception是程序可以处理的异常，分受检异常和不受检。Error是
 HashMap是非线程安全，允许null键；而Hashtable是线程安全的，不允许null键。但现代Java推荐用HashMap和ConcurrentHashMap。
 
 # HashMap的长度为什么是2的幂次方？（或者讲讲HashMap的扩容机制吧，饿了么考过）（度小满）
+# hashmap扩容为什么乘两倍（腾讯）
 
 可通过位运算（n-1）&hash代替mod计算索引，效率更高。扩容会对哈希表的长度扩展为2倍，而新的数组位置的计算仍然是hash&(n-1)，而n-1的二进制表示就是高位多了个1，这时看hash在高位对应的值，如果为0则元素的位置不变，如果为1则数组的位置在扩容之后的那一部分，**因此扩容后比较均匀**， 但是hash的均匀情况取决于hashCode方法和扰动函数。
 
@@ -716,6 +858,7 @@ hashmap扩容，如果元素个数是100个，那么这个时候容量应该是2
 
 # hashmap扩容时能执行put，get方法吗？（百度）
 # hashmap扩容是原地扩容还是复制到一个新数组？为什么？（百度）
+# hashmap的哪些操作，在并发中可能会出现什么样的错误的结果？（快手）
 put在并发环境下，涉及到锁，put会等待扩容完成后进行。
 
 get理论上可以在并发环境下扩容时进行，但是存在一致性问题。
@@ -725,6 +868,7 @@ get理论上可以在并发环境下扩容时进行，但是存在一致性问�
 # 为什么hashmap的扩容因子是0.75（百度）
 考虑性能和容量的平衡。
 
+# Java的hashmap和redis的hash的区别？（字节）
 # java怎么解决hash冲突，扩容复杂度多少？redis对扩容做了优化你知道吗？（字节考过）
 java通过拉链法或重哈希解决冲突。扩容是元素个数超过容量与负载因子乘积时，会发生的操作，扩容原有的元素要被重新计算哈希并重新放入新的桶中，平均复杂度是O n，最差情况下复杂度也是O n。
 
@@ -753,7 +897,7 @@ java通过拉链法或重哈希解决冲突。扩容是元素个数超过容量�
 当线程执行完成或因异常退出时，进入终止态，线程生命周期结束。
 线程状态转换可以通过**状态转换图**表示。
 
-# Java运行线程的几种方式？（京东，得物）
+# Java运行线程的几种方式？（京东，得物，腾讯）
 继承thread类，重写run方法创建线程。
 
 实现Runnable接口，并重写run方法创建线程。
@@ -762,14 +906,14 @@ java通过拉链法或重哈希解决冲突。扩容是元素个数超过容量�
 
 通过executor service创建线程池管理多个线程。
 
-# 操作系统的线程和Java的线程有什么区别和联系？（字节）
+# 操作系统的线程和Java的线程有什么区别和联系？（字节，拼多多）
 生命周期管理：操作系统负责线程的创建、调度和销毁，线程的生命周期完全由操作系统控制。
 
 Java线程由JVM管理。
 
-并发模型：操作系统线程通常采用1:1模型，一个操作系统线程对应一个用户线程。
+<!-- 并发模型：操作系统线程通常采用1:1模型，一个操作系统线程对应一个用户线程。
 
-Java线程可以采用1：1模型，也可以采用M：N模型 ，通过ForkJoinPool，ExecutorService实现。
+Java线程可以采用1：1模型，也可以采用M：N模型 ，通过ForkJoinPool，ExecutorService实现。 -->
 
 # 讲一讲Java线程池怎么实现的？（得物）
 实现依赖于juc包中的ThreadPoolExecutor类。
@@ -781,6 +925,34 @@ ThreadPoolExecutor类，提供线程池具体实现。
 BlockingQueue接口，存储待执行任务队列。
 
 ThreadFactory接口，创建新线程。
+
+# jdk有没有提供销毁核心线程节约资源的方法？（快手）
+没有。
+
+# 如何设计一个动态线程池，支持运行时修改参数？（快手）
+动态线程池无需重启服务即可实时调整核心配置参数，提供动态指定corePoolSize，maxPoolSize和workQueue的队列长度，参数应该放在比如ZooKeeper中间件中。
+  怎么获取线程池一些指标数据？
+通过getPoolSize，setPoolSize等方法。
+  如何监控线程池？
+使用springboot acturator监控应用运行状态，自定义EndPoint类，手动暴露线程池相关指标信息。
+  动态线程池的开源实现有哪些？
+hippo4j。使用配置中心sdk订阅配置项，监听配置中心的变化事件，获取配置，用set方法调整参数。
+
+# 为什么线程池先放阻塞队列再放非核心线程？（快手）
+因为创建和销毁线程是有开销的，阻塞队列可以减少这种开销。
+
+# 线程池核心线程数可以设置为0吗？（腾讯）
+可以。
+
+<!-- ```java
+public static void main(String[] args) throws IOException {
+    ThreadPoolExecutor threadPoolExecutor=new ThreadPoolExecutor(0,1,1,
+            TimeUnit.MILLISECONDS,new LinkedBlockingDeque<>());
+    threadPoolExecutor.submit(()->{
+        System.out.println("hello");
+    });
+}
+``` -->
 
 # 线程池参数，核心线程10，最大线程20，消息队列100，会如何执行？（得物）
 当任务数量<=核心线程数，所有任务都由核心线程直接处理。
@@ -839,6 +1011,7 @@ stop方法：已被废弃。他会导致线程立即终止，可能导致资源�
 没抢到资源的线程处于blocked状态。
 
 # 为什么用线程池不用进程池？多线程能否完全取代多进程？（腾讯）
+# 在多核CPU可以让多个进程并发的场景下，为什么还需要线程？（滴滴）
 线程资源开销更小，线程共享进程内存空间。
 
 线程上下文切换更快。
@@ -849,6 +1022,8 @@ stop方法：已被废弃。他会导致线程立即终止，可能导致资源�
 
 多进程使用场景：CPU密集型，如大规模计算，图像处理。
 
+注：CPU现在大多是多核的，多进程可以充分利用多个核心，多线程则可以充分利用一个核心。
+
 # 死锁怎么解决？（美团）
 预防死锁：资源有序分配，保证所有线程按照相同顺序请求资源；资源分级：将资源分级，高级别资源优先分配。
 
@@ -858,7 +1033,7 @@ stop方法：已被废弃。他会导致线程立即终止，可能导致资源�
 
 解除死锁：资源抢占，强制释放某些线程资源；线程终止，终止某些线程打破死锁。
 
-# HashMap的原理？以及不同情况下的复杂度？（字节，小鹏考过，58同城）
+# HashMap的原理？以及不同情况下的复杂度？（字节，小鹏考过，58同城，快手）
 hashmap是基于哈希表的数据结构，通过哈希函数将键映射到一个索引位置，实现插入删除查找操作。如果发生哈希冲突，则采用拉链法或开放地址法。
 复杂度。平均情况插入查找删除是O 1，最坏情况插入查找删除是O n，如果一个桶内是红黑树则插入查找删除复杂度是O log n。
 
@@ -876,6 +1051,21 @@ hashmap是基于哈希表的数据结构，通过哈希函数将键映射到一�
 
 # hashmap源码中，计算hash值为什么有一个高16位和低16位异或的过程？（百度考过，蚂蚁）
 当数组长度很短时，只有低位数的哈希值能参与索引运算。而让高16位参与运算可以更好均匀散列，减少碰撞。
+
+# 锁的分类（快手）
+偏向锁，轻量级锁，重量级锁。
+
+可重入锁，不可重入锁。
+
+共享锁，排他锁。
+
+公平锁，非公平锁。
+
+悲观锁，乐观锁。
+
+自旋锁，非自旋锁。
+
+可中断锁，不可中断锁。
 
 # 对象锁和类锁的区别？（百度考过）
 对象锁时针对某个具体对象实例的锁，类锁是针对整个类的锁。
@@ -905,12 +1095,119 @@ hashmap是基于哈希表的数据结构，通过哈希函数将键映射到一�
 
 序列化就是将对象转化为字节流以便保存到文件，而反序列化是字节流恢复到对象。
 
-# 讲一讲concurrent Hashmap的底层实现结构？（携程）
+# 讲一讲concurrentHashmap的底层实现结构？（携程）
+# concurrenthashmap怎么实现线程安全的？（快手多次考）
 分段锁机制。concurrenthashmap在jdk1.7中采用分段锁，每个segment类似一个小的hashmap，内部维护一个**hashentry**数组。这样的好处是，不同的线程可以同时访问不同segment，提高并发度。
 
 cas加synchronized。在jdk1.8中，concurrenthashmap的实现发生变化。放弃了分段锁，转而使用cas操作和synchronized保证线程安全。具体来说，进行插入操作时，首先会通过**cas**操作更新节点，如果失败则使用**synchronized**对**链表头结点**进行加锁，然后进行插入操作。
 
 扩容机制。concurrenthashmap支持并发扩容。每个线程负责迁移一部分桶bucket，加快扩容速度。
+
+# concurrenthashmap在JDK1.7中size怎么计算的？和JDK1.8有什么区别？（滴滴）
+JDK1.7分段计数：每个segment维护一个计数器，计算size要将所有segment计数器累加。可能性能瓶颈，因为每次计算size要锁定所有segment。
+
+JDK1.8：直接返回baseCount和counterCells的总和计算总大小。baseCount是基础计数器，counterCells是数组，在并发下分离计数器的更新操作，减少锁。
+
+```java
+public int size() {//JDK 1.7 
+    int size = 0;
+    for (Segment<K,V> segment : segments) {
+        size += segment.count;
+    }
+    return size;
+}
+public int size() {//JDK 1.8
+    long n = baseCount;
+    CounterCell[] as = counterCells;
+    if (as != null) {
+        for (CounterCell a : as) {
+            if (a != null)
+                n += a.value;
+        }
+    }
+    return (n < 0) ? Integer.MAX_VALUE : (int)n;
+}
+```
+
+# concurrenthashmap的put的流程？（快手）
+计算哈希值：根据键计算。
+
+定位桶：根据哈希值找到桶，如果桶为空直接插入键值对。
+
+加锁：如果桶不为空，加锁。
+
+插入或更新：找键是否存在，存在则更新，不存在插入新的键值对。
+
+扩容：如果负载因子超过阈值，concurrenthashmap会自动扩容。
+
+<!-- ```java
+public V put(K key, V value) {
+    // 计算哈希值
+    int hash = spread(key.hashCode());
+    int binCount = 0;
+    for (Node<K,V>[] tab = table;;) {
+        Node<K,V> f; int n, i, fh;
+        // 如果表为空，初始化表
+        if (tab == null || (n = tab.length) == 0)
+            tab = initTable();
+        // 定位桶，如果桶为空，直接插入
+        else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
+            if (casTabAt(tab, i, null, new Node<K,V>(hash, key, value, null)))
+                break;
+        }
+        // 如果桶正在扩容，帮助扩容
+        else if ((fh = f.hash) == MOVED)
+            tab = helpTransfer(tab, f);
+        else {
+            V oldVal = null;
+            // 对桶加锁
+            synchronized (f) {
+                if (tabAt(tab, i) == f) {
+                    if (fh >= 0) { // 链表处理
+                        binCount = 1;
+                        for (Node<K,V> e = f;; ++binCount) {
+                            K ek;
+                            if (e.hash == hash &&
+                                ((ek = e.key) == key ||
+                                 (ek != null && key.equals(ek)))) {
+                                oldVal = e.val;
+                                if (!onlyIfAbsent)
+                                    e.val = value;
+                                break;
+                            }
+                            Node<K,V> pred = e;
+                            if ((e = e.next) == null) {
+                                pred.next = new Node<K,V>(hash, key, value, null);
+                                break;
+                            }
+                        }
+                    }
+                    else if (f instanceof TreeBin) { // 红黑树处理
+                        Node<K,V> p;
+                        binCount = 2;
+                        if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key, value)) != null) {
+                            oldVal = p.val;
+                            if (!onlyIfAbsent)
+                                p.val = value;
+                        }
+                    }
+                }
+            }
+            // 检查是否需要转换为红黑树
+            if (binCount != 0) {
+                if (binCount >= TREEIFY_THRESHOLD)
+                    treeifyBin(tab, i);
+                if (oldVal != null)
+                    return oldVal;
+                break;
+            }
+        }
+    }
+    // 增加元素计数，可能会触发扩容
+    addCount(1L, binCount);
+    return null;
+}
+``` -->
 
 # Java中支持并发的数据结构有哪些？（腾讯）
 concurrenthashmap：将整个哈希表分成多个段，每个段类似一个独立的哈希表。每个段都有一个锁，因此多线程可以访问不同的段。
@@ -961,13 +1258,13 @@ java -cp . MyClass，jvm在当前路径下找不到MyClass.class文件。
 # 不同的class loader可以加载同名class吗？他们是同一个对象吗？（小红书）
 可以加载同名的class，每个classloader有自己的命名空间，即使两个classloader加载了同名class，他们实际上是两个不同的class对象。
 
-# class是怎么加载的？类加载过程？（小红书，得物）
+# class是怎么加载的？类加载过程？（小红书，得物，百度，字节，拼多多，腾讯）
 加载。类加载器根据类的全限定名读取类的二进制数据，并转换为方法区的数据结构。
 
 链接。
 验证。确保加载的类符合jvm规范。
 准备。为类的静态变量分配内存，设置默认初始值。
-解析。将类接口字段和方法的符号引用替换为直接引用。
+解析引用。将类接口字段和方法的符号引用替换为直接引用。
 初始化。执行类的静态初始化块和静态变量的赋值操作。
 
 # synchronized是怎么用字节码表达的？虚拟机怎么支持它的？（小红书）
@@ -1017,13 +1314,15 @@ ArrayList基于动态数组，支持快速随机访问，但是删除插入较�
 
 LinkedList基于双向链表，头尾插入删除快，但是随机访问慢。
 
-# 说说ArrayList的扩容机制吧（度小满）
+# 说说ArrayList的扩容机制吧（度小满，阿里）
 
 涉及动态调整底层存储数组大小。默认大小为0，在第一次添加元素时，设置容量为10，当超过时1.5倍扩容，Arrays.copyOf方法完成拷贝到新数组，ensureCapacity方法可预先加ArrayList容量。
 
 当需要扩容时，ArrayList会创建一个新的数组，容量为计算出的新容量。
 然后将旧数组中的元素复制到新数组中。
 最后，旧数组会被垃圾回收。
+
+为避免频繁扩容，可以在创建ArrayList时预估容量，指定初始容量。
 
 # 进程，线程，协程区别？（作业帮，shopee）
 进程：是操作系统资源分配和调度基本单位，每个进程有独立的内存空间和系统资源。通过管道消息队列通信。适用于要完全隔离的独立任务。
@@ -1032,8 +1331,16 @@ LinkedList基于双向链表，头尾插入删除快，但是随机访问慢。
 
 协程：用户态轻量级线程，由程序员控制调度，可以在任意位置挂起和恢复。适合要高并发任务，如网络爬虫。
 
-# 进程调度和线程调度区别？（字节）
+# 协程一定好吗（拼多多）
+协程要程序员管理调度，增加复杂度，线程和进程调度是操作系统负责。
+
+# 进程调度和线程调度区别？（字节，蚂蚁）
 资源分配方式不同：进程调度：分配文件描述符等资源，开销更大；线程调度：只要切换线程上下文，如寄存器状态，栈指针等，开销较小。
+
+# 通过什么信号通知进程切换到下一个进程？（蚂蚁）
+SIGALRM，SIGCHLD。
+
+注：SIGALRM，Timer signal from alarm(2)。SIGCHLD，Child stopped or terminated。
 
 # 虚拟线程怎么置换内存？（腾讯）
 JVM会根据需要将线程的内存状态保存到堆中，并在需要时恢复。
@@ -1045,6 +1352,15 @@ Java内存模型定义多线程环境变量读写规则，volatile是基于它�
 
 JVM在volatile变量读写操作前后插入内存屏障，保证顺序性。内存屏障是硬件指令。
 
+# Java内存模型（阿里）
+他是Java语言规范中定义的规则，描述多线程环境下，线程怎么和内存交互。
+
+Java内存模型将内存分为主内存和工作内存，主内存所有线程共享，工作内存线程私有，线程在工作内存操作变量，通过特定指令同步到主内存。
+
+volatile保证变量可见性。
+
+happens-before原则，保证有序性。
+
 # 单处理器有可见性问题吗？（字节）
 有可见性问题。volatile的意义在于保证线程间的可见性，和单核多核无关，即使只有一个处理器，线程也有自己的工作内存（本地缓存），线程可能从工作内存读取变量的值，而不是主存。
 
@@ -1053,7 +1369,7 @@ JVM在volatile变量读写操作前后插入内存屏障，保证顺序性。内
 
 可以用synchronized关键字或者用AtomicInteger类，提供原子性自增操作。
 
-# 讲一讲synchronized关键字的底层原理（重要）（得物）
+# 讲一讲synchronized关键字的底层原理（重要）（得物，字节）
 
 通过monitorenter和monitorexit指令获取和释放对象监视器确保同一时刻只有一个线程进入代码。monitorenter，如果对象锁没有被其他线程持有，将锁的持有计数器设为1，monitorexit会将锁的持有计数器减一。
 
@@ -1063,11 +1379,16 @@ Synchronized用两个队列来管理线程，**entry list**，所有**尚未获�
 
 引入偏向锁、轻量级锁、自旋锁等技术。减少synchronized锁操作的开销。
 
+# 说说自旋锁和互斥锁（字节）
+自旋锁：一个线程尝试获取已经被另一个线程占用的自旋锁时，线程持续循环，不休眠。用忙等实现。
+
+互斥锁：一个线程尝试获取时，线程被阻塞，进入休眠，等锁释放。用操作系统同步原语pthread_mutex_lock实现。
+
 # synchronized和volatile的区别（重要）
 
 volatile保证变量可见性，synchronized除保证可见性外，还保证原子性，能对代码进行同步控制。
 
-# synchronized和Reentrantlock的区别（重要）（得物）
+# synchronized和Reentrantlock reentrantlock的区别（重要）（得物，快手）
 # Java中的锁有了解吗？（58同城）
 
 synchronized基于JVM实现的内置锁，而Reentrantlock是基于Java API实现的可重入锁。
@@ -1079,7 +1400,7 @@ Synchronized是隐式锁，一旦进入同步块，锁自动获取，离开同�
 retrantlock是显式锁，提供了更多的灵活性，可以通过tryLock方法尝试获取锁，如果获取不到可以执行其他逻辑。
 
 公平性。
-Synchronized是非公平锁，线程获取锁的顺序不一定是按照请求锁的顺序。
+Synchronized是**非公平锁**，线程获取锁的顺序不一定是按照请求锁的顺序。
 Reentrantlock可以通过构造函数参数指定为公平锁或非公平锁，公平锁保证按照请求锁顺序获取锁，但性能稍差一点。
 
 条件变量。
@@ -1091,12 +1412,12 @@ Reentrantlock提供了condition接口，可以通过newCondition方法创建多�
 
 计数器。可重入锁内部维护了一个计数器，记录当前线程获取锁的次数。当线程释放锁时，计数器递减，只有计数器归零，锁才会真正释放。
 
-# reentrantlock公平和非公平的实现原理是什么？（京东，阿里）
-公平锁通过FairSync类实现，内部使用AQS的acquire方法。当一个线程请求锁时，如果锁已经被占用，线程会被放入AQS等待队列中，按照FIFO顺序等待。
+# reentrantlock公平和非公平的实现原理是什么？（京东，阿里，快手）
+公平锁通过FairSync类实现，内部使用AQS的acquire方法。当一个线程请求锁时，**如果锁已经被占用（队列不为空）**，线程会被放入AQS等待队列中，按照FIFO顺序等待。
 
 当锁被释放时，AQS会从队列头部取出等待时间最长的线程，保证公平。
 
-非公平锁用Non fair Sync类实现，也是用AQS的acquire方法。当一个线程请求锁时，如果获取锁失败，线程进入等待队列，但不保证FIFO顺序，允许插队。
+非公平锁用Non fair Sync类实现，也是用AQS的acquire方法。当一个线程请求锁时，如果**获取锁失败**，线程进入等待队列，但不保证FIFO顺序，允许插队。
 
 # AQS为什么用双向链表？（得物，场景题）
 AQS用双向链表管理等待线程的队列。
@@ -1169,11 +1490,13 @@ Reentrantlock是java中的一种可重入锁，允许一个线程多次获取同
 # ThreadLocalMap被谁引用？（蚂蚁）
 被Thread对象引用。
 
-# ThreadLocal的原理了解吗？（用友）
+# ThreadLocal的原理了解吗？（用友，快手）
 
 ThreadLocal在Thread类中实现，通过ThreadLocalMap维护了线程本地变量的映射关系，确保每个线程可以独立访问自己变量副本。ThreadLocalMap没有实现Map接口，独立实现。
 
 # ThreadLocal内存泄漏问题是怎么导致的？（得物，字节）
+# ThreadLocal的key和value分别放的什么数据？（京东）
+# threadlocal使用时的注意事项（快手多次考）
 
 ThreadLocal变量在ThreadLocalMap中以Entry形式存储，而Entry的key是ThreadLocal实例的弱引用，value是强引用。当ThreadLocal实例被回收时，由于Entry的key是弱引用，key会被自动回收，但value仍然强引用，无法被回收。
 
@@ -1181,6 +1504,18 @@ ThreadLocal变量在ThreadLocalMap中以Entry形式存储，而Entry的key是Thr
 
 怎么避免泄漏。
 用完ThreadLocal后，显式调用remove方法。
+
+<!-- ```java
+static class Entry extends WeakReference<ThreadLocal<?>> {//key是继承自weakReference，value是自己的
+    /** The value associated with this ThreadLocal. */
+    Object value;
+
+    Entry(ThreadLocal<?> k, Object v) {
+        super(k);
+        value = v;
+    }
+}
+``` -->
 
 # 基本类型和包装类型的区别？（58同城）
 
@@ -1256,6 +1591,15 @@ public class Car extends Vehicle {
 }
 ```
 
+# 如何预防死锁？（拼多多）
+
+破坏死锁产生的必要条件即可。
+
+必要条件：互斥、请求与保持、不可抢占和循环等待。
+
+# 重载和重写有什么区别？（快手）
+
+重载就是同一个类中多个同名方法根据不同的传参执行不同的逻辑处理。重写是子类对父类方法的重新改造，外部样子不变，内部逻辑变化。
 
 # 什么是字节码？采用字节码的好处是什么？
 
@@ -1276,10 +1620,6 @@ JVM可以理解的代码就是字节码，解决了传统解释性语言执行�
 # 静态方法和实例方法有什么不同？
 
 调用静态方法时，可以用类名.方法名，实例方法最好用对象.方法名。
-
-# 重载和重写有什么区别？
-
-重载就是同一个类中多个同名方法根据不同的传参执行不同的逻辑处理。重写是子类对父类方法的重新改造，外部样子不变，内部逻辑变化。
 
 # 什么是可变长参数？
 
@@ -1476,10 +1816,6 @@ CPU从一个线程切换到另一个线程的过程。
 # 什么是线程死锁？如何避免死锁？
 
 多个线程因争夺资源造成相互等待的现象。避免：保证线程获取资源顺序一致或超时机制。银行家算法，关键是确保进入安全状态。
-
-# 如何预防死锁？
-
-破坏死锁产生的必要条件即可。
 
 # sleep方法和wait方法对比
 
@@ -1713,6 +2049,23 @@ server处理请求，根据请求路径和方法处理请求，生成响应。
 
 连接结束，四次挥手。
 
+# ping一个网址中间的全过程（阿里巴巴）
+icmp协议。
+
+应用层：操作系统调用ping程序。
+
+DNS解析：将网址转化为IP地址。向DNS服务器发送查询请求，获得目标主机IP地址。
+
+网络层：操作系统生成ICMP echo request数据包，设置源IP目的IP。
+
+数据链路层：数据包封装成以太网帧，包含源MAC和目的MAC，目的MAC通过ARP协议获取。
+
+物理层。
+
+目标主机处理：生成ICMP echo reply。
+
+源主机接收：ping程序显示往返时间RTT。
+
 # HTTP状态码有哪些？（滴滴考过）
 # 301和302区别？（美团）
 
@@ -1881,7 +2234,7 @@ time wait，close
 
 重传机制：如果第一次连接的数据没有完全发送成功，TCP会进行重传。重传的数据包会带有正确的序列号，避免和第二次连接重复。
 
-# TCP close_wait过多什么原因？（字节，腾讯）
+# TCP close_wait过多什么原因？（字节，腾讯，拼多多）
 服务端未及时关闭连接，客户端请求发送FIN关闭连接时，服务端进入close_wait状态，如果服务端没有及时调用close方法，就会一直停留在close_wait状态。
 
 资源泄露：未释放的文件描述符或线程，导致连接无法正常关闭。
@@ -1907,6 +2260,11 @@ TCP参数配置不当。tcp_tw_reuse参数没有正确配置，导致TIME_WAIT�
 
 注：TCP里面是先close_wait再time_wait。
 
+# 短连接长连接在防火墙场景下用哪个比较好？（腾讯）
+参考。
+
+防火墙会自动把没有数据交互的连接断开。
+
 # TCP time_wait状态连接怎么快速回收？（腾讯）
 调整linux系统参数sysctl.conf。
 
@@ -1927,7 +2285,21 @@ net.ipv4.tcp_fin_timeout=30，设置fin_wait_2状态的超时时间。
 
 全双工协议，两个方向通信独立。客户端通信结束不代表服务端的通信也结束了。
 
+# TCP队头阻塞问题（滴滴）
+TCP数据包由于网络拥塞，发生延迟或丢失。当队列中某个数据包出现问题时，后续所有数据包都会被阻塞。
+
+解决方案：调整网络参数，避免拥塞。
+
+用高效协议：如QUIC。
+
+# TCP keep alive和http keep alive区别？（腾讯）
+TCP keep alive：检测TCP连接存活状态。一段时间没有数据传输时，发送小的探测包确认对方是否仍然在线。默认关闭
+
+HTTP：在同一个TCP连接上发送多个HTTP请求和响应。默认开启。
+
 # A机器发送报文到B机器途中有哪些可能原因会导致丢包？（腾讯）
+参考。
+
 网络拥塞：发生在高流量阶段。为了避免拥塞，可以用流量控制机制，如TCP拥塞控制算法。
 
 网络延迟：可以用QoS服务质量技术优先处理关键数据包。
@@ -1943,9 +2315,31 @@ net.ipv4.tcp_fin_timeout=30，设置fin_wait_2状态的超时时间。
 
 拥塞控制有慢启动，拥塞避免，快速重传，快速恢复。在网络层和传输层实现。
 
-# 进程间通信的方式（百度，shopee，腾讯多次考）
+# 路由器和交换机区别？（拼多多，滴滴，腾讯）
+工作层次不同：路由器工作在网络层，负责数据路由选择和转发。交换机工作在数据链路层，负责局域网内数据交换。
+
+功能不同：路由器根据路由表将数据包从一个网络发送到另一个网络，支持多种协议如TCP IP和IPX。交换机在局域网内用MAC地址实现端到端传输。
+
+# ARP协议干什么的？（滴滴）
+将IP地址解析为MAC地址的协议。
+
+当一台主机要和另一主机通信时，先检查自己ARP缓存，如果缓存没有目标主机MAC地址，发送一个ARP广播，询问目标IP地址的MAC地址。
+
+# sftp和ftp区别？（拼多多）
+协议类型：ftp用两个通道进行通信，一个用于控制命令，一个用于数据传输。
+
+sftp是ssh协议一部分，通过加密进行传输。
+
+端口：ftp用两个端口，21用于控制命令，20用于数据传输，主动模式。
+
+sftp通常用22。
+
+# 进程间通信的方式，进程通信（百度，shopee，腾讯多次考，字节，阿里）
 
 管道，信号，消息队列，信号量。管道用于父子进程之间的通信。信号和信号量不同，比如kill -9给进程发送sigkill信号，结束进程。消息队列比管道更适合频繁的数据传输。信号量实现进程之间的互斥和同步。
+
+# 进程通信哪种方式最快？（字节）
+共享内存。
 
 # 进程通信的共享内存如何创建，如何绑定到程序的进程内？（腾讯多次考）
 Java中，共享内存用mapped byte buffer实现。
@@ -1954,7 +2348,8 @@ Java中，共享内存用mapped byte buffer实现。
 
 绑定到进程内：通过mapped byte buffer访问和操作共享内存。
 
-# 两个线程之间怎么通信？线程通信（58同城，腾讯多次考）
+# 两个线程之间怎么通信？线程通信（58同城，腾讯多次考，拼多多）
+参考。
 用wait和notify方法：wait使当前线程进入等待状态，直到另一个线程调用notify唤醒它。
 
 用join方法：使当前线程等待另一个线程执行完毕。
@@ -2069,10 +2464,10 @@ AOP（面向切面编程）是一种编程范式，用于将横切关注点（�
 
 AOP切面在bean实例化之后，执行初始化方法之前。
 
-# AOP的底层实现？（58同城，满帮）
+# AOP的底层实现？（58同城，满帮，网易）
 AOP底层实现依赖于代理模式和反射机制。
 
-代理模式：动态代理：运行时生成代理类，有JDK动态代理和CGLIB动态代理。
+代理模式：动态代理：运行时生成代理类，有JDK动态代理和CGLIB动态代理。Spring默认使用jdk动态代理。
 
 JDK动态代理要求目标类实现接口，通过Java Proxy类和InvocationHanlder接口实现。
 
@@ -2090,11 +2485,12 @@ ioc是设计原则，目的是减少对象之间的耦合。
 ioc通过依赖注入DI实现。通过构造函数注入等方式将依赖关系注入对象中。
 
 # 谈谈自己对Spring Ioc的了解。（滴滴考过，腾讯）
+# 介绍Spring bean的创建方式（京东）
 
 IoC（控制反转）是一种将对象创建和管理的控制权从程序代码转移给外部容器的设计思想，它通过依赖注入来减少代码间的耦合度，提高模块的独立性和可扩展性。
 Spring容器是IOC核心，负责创建配置管理对象，容器通过读取配置文件或注解了解哪些对象要被创建和管理。
 
-**依赖注入**DI是IOC的实现方式，通过DI，对象依赖关系在运行时由容器动态注入。常见的DI有构造器注入，setter注入，我用构造器比较多，因为可以确保对象创建时拥有必要的依赖。
+**依赖注入**DI是IOC的实现方式，通过DI，对象依赖关系在运行时由容器动态注入。常见的DI/创建方式 有构造器注入，setter注入，我用构造器比较多，因为可以确保对象创建时拥有必要的依赖。
 我的经验，比如一个电商项目，通过使用Ioc容器管理用户服务，订单服务，支付服务的依赖关系，使得代码更加模块化。
 
 # 三级缓存怎么解决循环依赖？（网易，58同城，字节）
@@ -2111,12 +2507,19 @@ Spring容器是IOC核心，负责创建配置管理对象，容器通过读取�
 
 完成beanB初始化，beanA继续初始化。在SpringBoot 2.6版本解决了循环依赖问题。
 
+# 为什么要有第三级缓存？直接两个不行吗？（快手，网易）
+如果只是解决循环依赖问题可以只用两个，第三个是为了延迟代理的创建，不打破bean的生命周期。
+
 # 如果构造函数内存在循环依赖还能解决吗？（shopee）
 Bean创建的三步：实例化new，属性注入set，初始化。
 
 构造器注入，比如A(B b)，那表明new A的时候，就需要得到B。因此如果A B全是构造器注入，那Spring就不能处理循环依赖。
 
-而一个set注入，一个构造器注入，不一定成功。A set注入B，B构造器注入A，成功。A构造器注入B，Bset注入A，失败。Spring是按照字母序创建Bean的，A永远在B前面。
+而一个set注入，一个构造器注入，不一定成功。
+
+A set注入B，B构造器注入A，成功。
+
+A构造器注入B，Bset注入A，失败。Spring是按照字母序创建Bean的，A永远在B前面。
 
 # spring和springboot启动方式的区别（小红书）
 spring需要配置大量xml或java配置，springboot采用约定优于配置原则，提供自动配置功能。
@@ -2137,7 +2540,21 @@ Spring Boot 的核心容器是基于 Spring 框架的，而 Spring 框架本身�
 
 可以使用泛型来定义 bean 的类型，在依赖注入时，Spring 会根据泛型类型自动匹配并注入相应的 bean。
 
+# springboot的启动过程？（阿里巴巴）
+初始化SpringBootApplication对象：包含主类。
+
+加载应用上下文：加载ApplicationContext，他是spring核心容器，管理bean。
+
+扫描并注册bean：扫描指定路径，找到所有组件如Component，Service等，注册到上下文。
+
+执行自动配置：根据classpath中的依赖和配置文件application properties配置。比如tomcat容器。
+
+启动嵌入式服务器。
+
+运行应用：调用run方法。
+
 # Springboot全局异常处理？（腾讯）
+# 项目中如何处理异常（拼多多）
 通过统一的机制处理所有未捕获的异常，避免异常信息直接暴露给用户。
 
 统一异常处理：避免在Controller重复编写异常处理代码。
@@ -2146,10 +2563,46 @@ ControllerAdvice注解标记一个类为全局异常处理器。
 
 ExceptionHandler注解指定处理特定异常的方法。
 
-# Bean的生命周期了解吗？（小红书，得物）
+# Bean的生命周期了解吗？（小红书，得物，京东）
 # Spring生命周期了解吗？
 
 包括实例化、属性赋值、初始化和销毁等阶段，开发者可以通过实现特定的接口（如**InitializingBean** 和**DisposableBean**）或使用注解（如**@PostConstruct** 和**@PreDestroy**）来干预**Bean** 的生命周期。
+
+<!-- 1.调用构造方法：我出生了！
+2.设置属性：我的名字叫楼仔
+3.调用BeanNameAware#setBeanName方法:我要上学了，起了个学名
+4.调用BeanFactoryAware#setBeanFactory方法：选好学校了
+5.BeanPostProcessor.postProcessBeforeInitialization方法：到学校报名啦
+6.InitializingBean#afterPropertiesSet方法：入学登记
+7.自定义init方法：努力上学ing
+8.BeanPostProcessor#postProcessAfterInitialization方法：终于毕业，拿到毕业证啦！
+Bean使用中：工作，只有对社会没有用的人才放假。。
+9.DisposableBean#destroy方法：平淡的一生落幕了
+10.自定义destroy方法:睡了，别想叫醒我 -->
+
+# spring怎么知道所有bean创建完的？（快手）
+spring通过beanfactoryPostProcessor和beanPostProcessor接口处理bean的声明周期。
+
+beanFactoryPostProcessor在bean定义加载后，实例化之前执行。
+
+beanPostProcessor在bean实例化后，初始化前，初始化后执行。
+
+applicationContext提供了事件机制，通过contextRefreshEvent可以监听整个应用上下文刷新完成的事件。所有bean创建并初始化完成后，contextRefreshEvent会被触发。
+
+<!-- ```java
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.stereotype.Component;
+@Component
+public class MyContextRefreshedListener implements ApplicationListener<ContextRefreshedEvent> {
+
+    @Override
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        // 所有 Bean 创建完成后执行的逻辑
+        System.out.println("所有 Bean 创建完成，执行自定义逻辑");
+    }
+}
+``` -->
 
 # beanFactory和factoryBean的区别（阿里）
 beanFactory用于简单的依赖注场景，spring容器会自动管理bean的生命周期和依赖关系。
@@ -2206,7 +2659,7 @@ factoryBean适用于需要复杂初始化逻辑的场景，比如创建代理对
 # 假如有3个方法，ABC组成嵌套事务，那么C是怎么知道AB开启了事务的？（得物）
 在嵌套事务中，**事务上下文**会被传递。方法a开启事务后，事务上下文会被传递给方法b和c。在spring中，事务上下文通过threadlocal传递。
 
-# Spring事务什么时候失效？事务失效？（百度，得物多次考，哈啰）
+# Spring事务什么时候失效？事务失效？（百度，得物多次考，哈啰，网易）
 非public方法：Spring事务注解默认作用域public方法。
 
 内部调用：一个类内部，一个方法调用了另一个带有Transactional注解的方法，事务会失效，因为事务通过代理模式实现，内部调用不会经过代理对象。
@@ -2266,6 +2719,13 @@ docker通过命名空间和控制组实现。
 
 实现机制，cookie通过http头信息发送给客户端，客户端每次请求都会带上相应cookie。seesion通常是通过在cookie中存储一个sessionid来实现，服务器根据id查找对应的session数据。
 
+# ETCD满足CAP哪两个？（拼多多）
+CP，一致性和分区容错，放弃可用。
+
+# AutoWired和Resource的区别？（滴滴）
+
+@Autowired 是Spring提供的注解，主要通过类型来自动注入依赖，而在存在多个实现时可配合 @Qualifier 明确指定注入的bean；@Resource 是JDK的注解，它默认按名称注入，也可以指定类型来实现注入。
+
 # 什么是Spring框架？
 
 是一个开源的Java开发框架，它通过提供控制反转（IoC）和面向切面编程（AOP）等核心功能，帮助开发人员提高开发效率。
@@ -2300,10 +2760,6 @@ ISOLATION_DEFAULT（使用数据库默认隔离级别）、ISOLATION_READ_UNCOMM
 # 将一个类声明为Bean的注解有哪些？
 
 Component，Repository，Service，Controller。
-
-# AutoWired和Resource的区别？
-
-@Autowired 是Spring提供的注解，主要通过类型来自动注入依赖，而在存在多个实现时可配合 @Qualifier 明确指定注入的bean；@Resource 是JDK的注解，它默认按名称注入，也可以指定类型来实现注入。
 
 # Bean的作用域有哪些？
 
