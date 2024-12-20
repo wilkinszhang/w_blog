@@ -1,0 +1,73 @@
+# golang内存逃逸概念，如何解决（腾讯）
+
+# GMP模型概念，作用（腾讯，美团）
+
+# go map怎么解决并发问题（腾讯）
+
+# go interface底层如何实现（腾讯）
+
+# go Channel底层实现（腾讯）
+
+# Go channel关闭了，读写这个channel会发生什么（腾讯）
+
+# go怎么实现线程池（美团）
+
+# go协程是对称的还是不对称的？（腾讯）
+
+# go Context你用过吗（腾讯）
+
+# slice扩容机制（字节）
+
+# sync包mutex实现（字节）
+
+# go中协程和线程的区别？（字节）
+
+# go中数组和切片区别？（字节）
+
+# 结构体作为参数传递时是传值还是传指针（字节）
+
+# 如何对map排序（字节）
+
+# go垃圾回收机制（字节）
+
+# go中并发utils了解多少（字节）
+
+# go如何两个协程实现奇偶交替打印（百度）
+
+# 按照列遍历二维切片（百度）
+
+# goroutine是什么（百度）
+
+# go实现发布订阅模型（百度）
+
+# GMP中M对应的内核的什么，G除了系统调用会阻塞还有什么会阻塞（百度）
+
+# P怎么调度G的（百度）
+
+# go defer怎么用的（百度）
+
+# cap和len区别（百度）
+
+# 能往已经closed的Channel写数据吗（百度）
+
+# ：=和=的区别（百度）
+
+# go有几种锁，乐观锁怎么实现的（百度）
+
+# Channel有缓冲和无缓冲区别（百度）
+
+# 值传递和引用传递区别（腾讯云智）
+
+# 子gouroutine的panic会不会被父g捕获（滴滴）
+
+# 给你10个goroutine，如何打印出升序数字（滴滴）
+
+# go sema（滴滴）
+
+# go waitgroup（滴滴）
+
+# go once（滴滴）
+
+# goroutine可能内存泄漏吗？为什么（B站）
+
+TODO ： https://github.com/xiaobaiTech/golangFamily

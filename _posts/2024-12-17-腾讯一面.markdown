@@ -1,0 +1,141 @@
+# 进程跟线程有什么区别？
+
+# 多线程CPU上下文切换是一个怎样的过程？
+
+# 进程的上下文切换和线程的上下文切换有什么区别？
+
+# 进程里面虚拟内存和物理内存怎么关联起来的？
+
+# 操作系统多级页表的好处？
+
+# 线程和协程有什么区别？
+线程是操作系统调度基本单位，每个线程有独立的栈和寄存器。切换需要内核参与。
+
+协程由程序员在用户空间调度，切换不需要内核参与。
+
+<!-- ```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	// 创建一个协程
+	go func() {
+		for i := 0; i < 5; i++ {
+			fmt.Println("协程:", i)
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+
+	// 主线程
+	for i := 0; i < 5; i++ {
+		fmt.Println("主线程:", i)
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+``` -->
+
+# 协程的开销小，具体体现在什么开销，哪些开销比较小？
+不用进入内核态。
+
+# go语言协程调度怎么做的？
+MN调度模型，M个goroutine映射到N个操作系统线程上。
+
+调度器由三个组件构成，G（goroutine），M（machine，操作系统线程），P（Processor，逻辑处理器）。
+
+调度策略：
+
+抢占式调度：调度器在一定时间后强制切换goroutine。
+
+工作窃取：当一个P的goroutine队列为空时，他会从其他P队列窃取goroutine执行。
+
+<!-- ```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func worker(id int) {
+	fmt.Printf("Worker %d starting\n", id)
+	time.Sleep(time.Second) // 模拟工作
+	fmt.Printf("Worker %d done\n", id)
+}
+
+func main() {
+	for i := 1; i <= 5; i++ {
+		go worker(i) // 启动多个 goroutine
+	}
+
+	time.Sleep(2 * time.Second) // 等待所有 goroutine 完成
+}
+
+``` -->
+
+# 当我们调用malloc时，操作系统怎么帮我分配内存的？分配的机制你了解吗？
+当调用malloc时，C库会在内存池找到合适空闲块，若找到则返回地址；若没有则通过系统调用向操作系统申请更多内存。
+
+# TCP慢启动是一个什么样的过程？
+
+# TCP time_wait状态有什么用？
+
+# epoll的原理是什么？
+
+# epoll水平触发和边缘触发区别？
+
+# MySQL间隙锁有什么作用？
+
+# MySQL的主从复制是一个怎样的机制？
+
+# 半同步复制和异步复制有什么区别？
+
+# 后台服务，比如写一个后台接口，然后前端一般是从接入层过来，再打到服务器的逻辑的一个server上，那中间的负载均衡和服务发现怎么做的呢？
+
+# 后台有一个集群，部署了10个节点，其中有一个节点挂了，那么请求流量是怎么迁移的呢？
+
+# kafka副本之间的数据一致性是怎么保证的？
+
+# go Channel怎么实现的？
+
+# go Channel有多个程序去写，写满的话，会挂起阻塞，这个阻塞是怎么实现的？
+Channel的阻塞是通过go调度器和操作系统同步原语mutex，condition variable实现的。
+
+<!-- ```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	// 创建一个容量为2的有缓冲channel
+	ch := make(chan int, 2)
+
+	// 启动一个goroutine向channel写入数据
+	go func() {
+		for i := 0; i < 3; i++ {
+			fmt.Println("Writing", i)
+			ch <- i // 写入数据
+			fmt.Println("Written", i)
+		}
+	}()
+
+	// 等待一段时间，确保写操作被阻塞
+	time.Sleep(1 * time.Second)
+
+	// 从channel中读取数据
+	fmt.Println("Reading", <-ch)
+	fmt.Println("Reading", <-ch)
+	fmt.Println("Reading", <-ch)
+}
+
+``` -->
+
+# HTTP和HTTPS的区别？
+
+# 浏览器输入网址，整个请求的流程是怎样的？

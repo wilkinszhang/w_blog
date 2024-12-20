@@ -6,6 +6,8 @@
 
 泳道的实现，和**k8s流量标**相关。在方案表中新增泳道字段，在后端引擎调度算子代码时，对环境进行判等，只有相等才会返回结果。
 
+多人协同参考：https://help.aliyun.com/zh/asm/use-cases/define-routing-rules-based-on-traffic-labels-1694487146614?spm=5176.28426678.J_HeJR_wZokYt378dwP-lLl.736.365a5181trASqb&scm=20140722.S_help@@%E6%96%87%E6%A1%A3@@2549873.S_RQW@ag0+BB2@ag0+BB1@ag0+os0.ID_2549873-RL_%E6%B5%81%E9%87%8F%E6%A0%87-LOC_search~UND~helpdoc~UND~item-OR_ser-V_4-P0_2
+
 ![投放前台链路](https://github.com/wilkinszhang/picx-images-hosting/raw/master/delivery_frontend.2h8cpjc3bt.webp)
 
 # 问一下业务细节，租户组，租户，子服务什么意思？（字节）
@@ -24,10 +26,14 @@
 网络策略可以控制pod之间的网络流量，限制命名空间之间的通信。
 
 # 动态扩缩容指的是什么？是流量的扩缩容还是机器扩缩容？（字节）
-是机器扩缩容。
+是流量（计算资源）的扩缩容。
 
 # 对于你实习的项目，去掉技术相关的，业务是什么呢？（饿了么）
-比如对于百亿补贴场景下，根据用户请求信息，查询资源位，查询投放任务，召回物料。
+<!-- 比如对于百亿补贴场景下，根据用户请求信息，查询资源位，查询投放任务，召回物料。 -->
+
+投放，即将招选出来的物料有策略的给到消费者，目标是人货场的高效匹配。
+
+参考：https://developer.aliyun.com/article/787513
 
 # 那比如说机器的扩缩容，基于哪些指标来做的操作呢？（童心制物）
 扩缩容的触发条件是QPS，响应时间，CPU和内存利用率等。
@@ -38,22 +44,36 @@
 
 # 多租户组之间是隔离的吗？隔离怎么做的？（在多租户架构中，怎么处理多租户资源隔离问题？）（网易）
 是隔离的。
+
 **最理想的情况是全部单独部署，隔离性最好，但是成本最高，我们主要是db/kafka等中间件（存储）上的隔离，以及流量（计算资源）上的单独部署。**
 
 在投放引擎中，我们有路由engine引擎负责对用户流量的负载均衡，然后交给具体的实例执行业务代码，最后返回，这个过程中逻辑隔离是通过仓库隔离实现的，投放和业务中台有不同的代码仓库。然后存储隔离通过独立的数据库库名，kafka不同租户不同topic，redis key前缀不同实现。
 
 # 实习中多租户技术方案是如何确定的（小红书）
 （要讲一下备选方案如何被刷下去的。）
-这个技术方案有选型，我们内部讨论出来的，之前的方案是直接水平扩容，缺点是不能进行流量分配。
+讨论了三个方案。
+
+独立数据库：一个租户一个库，但是连接池可以服用，隔离级别最高。
+
+共享库，每个租户一个表：逻辑隔离。
+
+共享库，共享表：表中新增tenant_id。
+
+由于租户之间流量差异较大，我们选择独立数据库方案。
+
+<!-- 这个技术方案有选型，我们内部讨论出来的，之前的方案是直接水平扩容，缺点是不能进行流量分配。
 
 但是对于多人协同代码合并有多个方案，选择json合并还是手动合并。
 
 JSON合并是用自动化工具合并，比如持续集成环境，能提升效率。
 
-手动合并更灵活，适合处理关键业务逻辑或特殊需求时，确保符合预期。
+手动合并更灵活，适合处理关键业务逻辑或特殊需求时，确保符合预期。 -->
 
 # 项目中缓存一致性怎么保证的？
-在投放系统中，投放任务（时间，资源位，人群，物料信息）和物料（商品，品牌，直播）和资源位（页面上的一个坐标）涉及到缓存异步更新。两级分布式缓存：第一级存储资源位和任务ID的对应，存储N分钟滑动窗口中进行中和即将开始任务。第二级缓存加速数据库查询。
+<!-- 在投放系统中，投放任务（时间，资源位，人群，物料信息）和物料（商品，品牌，直播）和资源位（页面上的一个坐标）涉及到缓存异步更新。 -->
+两级分布式缓存：第一级存储算子和租户
+的对应，存储N分钟滑动窗口中活跃的租户。第二级缓存加速数据库查询。
+<!-- 第一级存储资源位和任务ID的对应，存储N分钟滑动窗口中进行中和即将开始任务。第二级缓存加速数据库查询。 -->
 
 更新逻辑：
 MySQL binlog：日志记录修改，
@@ -94,7 +114,7 @@ ab测试核心是通过数据驱动决策，通过不同实验确定哪个更有
 
 优点。protobuf使用二进制格式进行序列化，相比于json或xml，他占用的空间更小，传输速度更快。
 
-跨平台和语言支持，protobuf支持多种编程语言，如java，python，c++等，使得不同平台和语言之间进行数据交换变得很方便。
+<!-- 跨平台和语言支持，protobuf支持多种编程语言，如java，python，c++等，使得不同平台和语言之间进行数据交换变得很方便。 -->
 
 向后兼容性。protobuf设计时考虑了版本控制，可以不破坏现有客户端的情况下，添加或删除字段。
 
@@ -186,3 +206,72 @@ public class PromotionTest {
 # 你在项⽬中遇到过 GC 问题吗？怎么分析和解决的？
 
 上线后，发现接口调用频繁导致新生代 GC频繁告警。新生代 GC次数增多，同时老年代内存快速升高，最终触发了Full GC。分析发现Guava Cache的Map对象占用大量内存。问题分析：Guava Cache没有设置最大缓存数量，仅设置了过期时间。这导致缓存中存储了大量对象。解决方法，通过为Guava Cache设置最大缓存数量限制，控制缓存中对象的数量，减少内存占用。
+
+# 多租户隔离，为什么不用两个进程？
+需要下沉容器层，有插件层消除重复。
+表现为同一个应用，然后只注册到注册中心一次。两个应用可以使用相同端口号。
+另外进程就更重了，要消耗更多的资源，而且不好管控。
+
+参考：https://juejin.cn/post/7253809748318109755
+
+https://help.aliyun.com/zh/polardb/polardb-for-mysql/user-guide/multi-tenant-resource-isolation-usage-example?spm=5176.28426678.J_HeJR_wZokYt378dwP-lLl.11.4b4651816Tjf8f&scm=20140722.S_help@@%E6%96%87%E6%A1%A3@@2698281.S_BB2@bl+RQW@ag0+BB1@ag0+hot+os0.ID_2698281-RL_%E7%A7%9F%E6%88%B7%E9%9A%94%E7%A6%BB-LOC_search~UND~helpdoc~UND~item-OR_ser-V_4-P0_1
+
+https://help.aliyun.com/zh/rds/apsaradb-rds-for-postgresql/implementation-of-saas-tenant-data-isolation-solution-based-on-row-level?spm=5176.28426678.J_HeJR_wZokYt378dwP-lLl.12.4b4651816Tjf8f&scm=20140722.S_help@@%E6%96%87%E6%A1%A3@@2526158.S_BB2@bl+RQW@ag0+BB1@ag0+hot+os0.ID_2526158-RL_%E7%A7%9F%E6%88%B7%E9%9A%94%E7%A6%BB-LOC_search~UND~helpdoc~UND~item-OR_ser-V_4-P0_2
+
+https://help.aliyun.com/zh/ack/ack-managed-and-ack-dedicated/user-guide/benefits-of-sandboxed-container?spm=5176.28426678.J_HeJR_wZokYt378dwP-lLl.33.4b4651816Tjf8f&scm=20140722.S_help@@%E6%96%87%E6%A1%A3@@160288.S_RQW@ag0+BB2@ag0+BB1@ag0+hot+os0.ID_160288-RL_%E7%A7%9F%E6%88%B7%E9%9A%94%E7%A6%BB-LOC_search~UND~helpdoc~UND~item-OR_ser-V_4-P0_3
+
+# 流程编排分支条件如何实现？
+业务身份，这个有问题，如果大量增加分支，会拷贝多份，会有很多重复的规则文件，但是只有一两个组件不一样。
+目前做法时在组件中可能有业务条件判断。后续会使用表达式语言增加分支条件支持，业务身份只支持大粒度的区分。
+
+# 流程编排如何避免大量调用下游服务，是否做了隔离？
+感觉调用下游要做熔断，例如hystrix。但是这个有点重了。sdk要做薄。
+
+# 流量隔离
+动态调度：动态加载和卸载
+
+# 扩展点
+组件化编程
+
+# 编排
+需要支持不同的分支条件，不能只靠增加业务身份，解决分支问题，不然规则文件很多
+
+# 后续多个聚合业务共用同一个业务中台应用，一个聚合应用发布，另一个聚合应用也得跟着发布，如何解决这个问题？
+动态部署
+
+参考：https://help.aliyun.com/document_detail/149601.html?spm=5176.28426678.J_HeJR_wZokYt378dwP-lLl.121.7e7f5181f0SkBg&scm=20140722.S_help@@%E6%96%87%E6%A1%A3@@149601.S_RQW@ag0+BB2@ag0+BB1@ag0+os0.ID_149601-RL_%E5%8A%A8%E6%80%81%E9%83%A8%E7%BD%B2-LOC_search~UND~helpdoc~UND~item-OR_ser-V_4-P0_2
+
+# SaaS租户数据隔离是怎么实现的
+数据库隔离，成本高。
+
+schema隔离，每个租户独立的schema。
+
+表级隔离，在表中增加租户ID。
+
+行级隔离，记录中增加租户ID字段。
+<!-- ```java
+// 示例：通过租户ID进行数据隔离
+public class TenantService {
+    private static final ThreadLocal<String> currentTenant = new ThreadLocal<>();
+
+    // 设置当前租户ID
+    public static void setCurrentTenant(String tenantId) {
+        currentTenant.set(tenantId);
+    }
+
+    // 获取当前租户ID
+    public static String getCurrentTenant() {
+        return currentTenant.get();
+    }
+
+    // 查询租户数据
+    public List<User> getTenantUsers() {
+        String tenantId = getCurrentTenant();
+        if (tenantId == null) {
+            throw new RuntimeException("Tenant ID is not set.");
+        }
+        // 在查询时加入租户ID过滤条件
+        return userRepository.findByTenantId(tenantId);
+    }
+}
+``` -->
