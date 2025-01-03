@@ -696,8 +696,8 @@ EXPLAIN 是分析查询语句性能的最重要工具之一，可以判断查询
 -**磁盘碎片**：随着数据量的增加，磁盘碎片也会增加，进一步增加了磁盘查找的时间。
 
 # 读写分离如何实现？
-
-使用MySQL内置的主从复制机制，将主库的变更复制到从库。首先在主库上通过log-bin配置文件启用二进制日志，然后再从库上通过relay-log配置启用复制，最后在从库上执行Change master to 命令指向从库。
+<!-- 使用MySQL内置的主从复制机制， -->
+将主库的变更复制到从库。首先在主库上通过log-bin配置文件启用二进制日志，然后再从库上通过relay-log配置启用复制，最后在从库上执行Change master to 命令指向从库。
 
 # 为什么要分库分表？有哪些常⻅的分库分表⼯具？
 
@@ -785,9 +785,128 @@ reactor的工作原理：
 
 事件分发器event demultiplexer：事件发生，他将事件发送给处理器。
 
-事件处理器event handler。
+事件处理器event handler。负责业务逻辑
 
-有单线程reactor和多线程reactor。单线程是一个负责分发和处理，而多线程是主线程负责监听和分发，其他线程负责处理。redis是单线程reactor。
+有单线程reactor，多线程reactor，主从reactor。单线程是一个负责分发和处理，而多线程是主线程负责监听和分发，其他线程负责处理。主从是主reactor负责接收连接，分配给从reactor进行处理。redis是单线程reactor。
+
+<!-- ```java
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.*;
+import java.util.Iterator;
+import java.util.Set;
+
+public class Reactor {
+    private Selector selector;
+    private ServerSocketChannel serverSocket;
+
+    public Reactor(int port) throws IOException {
+        selector = Selector.open();
+        serverSocket = ServerSocketChannel.open();
+        serverSocket.bind(new InetSocketAddress(port));
+        serverSocket.configureBlocking(false);
+        SelectionKey sk = serverSocket.register(selector, SelectionKey.OP_ACCEPT);
+        sk.attach(new Acceptor());
+    }
+
+    public void run() {
+        try {
+            while (!Thread.interrupted()) {
+                selector.select();
+                Set<SelectionKey> selected = selector.selectedKeys();
+                Iterator<SelectionKey> it = selected.iterator();
+                while (it.hasNext()) {
+                    SelectionKey key = it.next();
+                    it.remove(); // Remove the key from the selected set
+                    dispatch(key);
+                }
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private void dispatch(SelectionKey key) {
+        Runnable r = (Runnable) (key.attachment());
+        if (r != null) {
+            r.run();
+        }
+    }
+
+    class Acceptor implements Runnable {
+        public void run() {
+            try {
+                SocketChannel c = serverSocket.accept();
+                if (c != null) {
+                    System.out.println("Accepted connection from " + c.getRemoteAddress());
+                    new Handler(selector, c);
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    class Handler implements Runnable {
+        private final SocketChannel socket;
+        private final SelectionKey sk;
+        private final ByteBuffer buffer = ByteBuffer.allocate(1024);
+
+        Handler(Selector sel, SocketChannel c) throws IOException {
+            socket = c;
+            c.configureBlocking(false);
+            sk = socket.register(sel, SelectionKey.OP_READ);
+            sk.attach(this);
+            sel.wakeup();
+        }
+
+        public void run() {
+            try {
+                if (sk.isReadable()) {
+                    int bytesRead = socket.read(buffer);
+                    if (bytesRead > 0) {
+                        buffer.flip();
+                        byte[] data = new byte[buffer.limit()];
+                        buffer.get(data);
+                        String received = new String(data);
+                        System.out.println("Received: " + received.trim());
+
+                        // Echo back the data
+                        buffer.rewind();
+                        socket.write(buffer);
+                        buffer.clear();
+                    } else if (bytesRead == -1) {
+                        // Client closed the connection
+                        socket.close();
+                        System.out.println("Connection closed by client");
+                    }
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    // Main method to start the server
+    public static void main(String[] args) {
+        int port = 8080; // You can change the port if needed
+        try {
+            Reactor reactor = new Reactor(port);
+            System.out.println("Reactor server started on port " + port);
+            reactor.run();
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+}
+
+``` -->
 
 # 为什么MySQL不能用单线程跟redis一样快？（shopee）
 数据处理方式不同：redis是内存数据库，redis用单线程模型，通过事件驱动避免多线程的锁竞争和上下文切换开销。
@@ -807,7 +926,7 @@ MySQL数据持久化涉及到复杂的日志记录和事务管理，单线程模
 缓存雪崩是，大量的用户请求，都无法在 Redis 中处理，于是全部请求都直接访问数据库，从而导致数据库的压力骤增，严重的会造成数据库宕机，从而形成一系列连锁反应，造成整个系统崩溃。
 
 # 缓存穿透怎么解决？缓存击穿怎么解决？缓存雪崩怎么解决？（重要）
-缓存穿透可以通过缓存无效值和布隆过滤器解决。
+缓存穿透可以通过缓存空对象和布隆过滤器解决。
 
 缓存击穿可以通过设置热点数据**不过期**以及**分布式锁**解决，分布式锁避免对同一资源并发读写竞争。
 
@@ -870,7 +989,8 @@ public class BloomFilter {
 ```
 
 # 现有一个爬虫，反复爬取冷门数据，造成热数据在缓存中剔除，导致缓存雪崩问题，你有什么方案？（shopee）
-冷热数据分离：将冷门数据和热门数据分别存储在不同的缓存区域，避免冷门数据占用热门数据的缓存空间。
+<!-- 冷热数据分离：将冷门数据和热门数据分别存储在不同的缓存区域，避免冷门数据占用热门数据的缓存空间。 -->
+冷热数据分离：将冷门数据和热门数据分别存储在集群不同实例上，避免冷门数据占用热门数据的缓存空间。
 
 限流与熔断：对爬虫请求进行限流，防止过度消耗系统资源，可以用Guava的RateLimiter实现。同时设置熔断机制，当缓存系统负载过高时，自动熔断爬虫请求，可以用Hystrix，Resilience4j实现。
 
@@ -938,7 +1058,8 @@ repl_backlog_histlen:0
 删除：查找目标节点，然后从各层链表中删除该节点。
 
 # redis的跳表，什么时候查询效率最低？key要怎么设计可以避免查询效率低的情况（拼多多）
-参考。
+参考。待定。
+
 大量元素有相同的分数score，这些元素在跳表同一级上形成较长的链表。
 
 # 什么场景选择跳表？跳表有什么优势？（百度）
@@ -973,7 +1094,7 @@ repl_backlog_histlen:0
 
 # Zset 的应⽤场景是什么？项⽬哪⾥⽤到了？
 
-Zset 类型用于排序场景，比如排行榜、电话和姓名排序等，也可以用于实现延迟队列，延迟是指把要做的事推迟后再做，zset有score属性存储延期时间。
+Zset 类型用于排序场景，比如排行榜、电话和姓名排序等，也可以用于实现延迟队列，延迟是指把要做的事推迟后再做，zset有score属性存储延期时间。比如hash单独一个key的过期时间可以用zset。
 
 # 直播打赏榜单用redis哪种数据结构？（拼多多）
 用redis的zset。
@@ -1031,7 +1152,7 @@ listpack是紧凑的列表结构，元素之间通过指针或偏移量连接。
 
 listpack在元素少的时候用，多的用跳表。
 
-跳表实现简单。
+跳表实现简单。跳表的zrange时间复杂度和红黑树相当，而且实现更简单。
 
 # zset的时间复杂度是什么？
 # 跳表的时间复杂度？（作业帮）
@@ -1064,7 +1185,8 @@ zset如果元素比较多，那么用跳表实现，跳表的增删查的时间�
 消息队列异步更新：binlog记录更改，生成数据库变更信息存入rocketMQ，用缓存更新服务，订阅rocketMQ特定主题，接收并处理这些变更消息。
 
 # 先修改数据库，再删除redis仍然有不一致怎么办？（腾讯）
-只能保证最终一致性。如果需要强一致性，可以用刚性事务如2PC，3PC，确保数据库和redis的操作是原子性的。
+不对，应该先删除redis，再修改数据库。
+<!-- 只能保证最终一致性。如果需要强一致性，可以用刚性事务如2PC，3PC，确保数据库和redis的操作是原子性的。 -->
 
 # 多级缓存一致性怎么保证？（腾讯）
 参考。
@@ -1076,6 +1198,8 @@ zset如果元素比较多，那么用跳表实现，跳表的增删查的时间�
 分布式锁。在更新缓存时，使用分布式锁确保同一时间只有一个线程可以更新缓存，避免并发更新导致数据不一致。
 
 消息队列。在数据更新后，发一个消息到队列，其他节点监听到消息后同步更新自己的缓存。
+
+CAP原则中，我们必须保证P分区容错性，而我们要保证A可用性，只能放弃C一致性。
 
 # 常见的缓存更新策略有哪些？
 
@@ -1106,8 +1230,10 @@ redis的setnx可以实现分布式锁的互斥性，如果key存在，set不会�
 ziplist是一种紧凑的编码格式，用于redis的zset和hash的底层实现。在ziplist中prevlen是可变长编码，如新元素长度是超过253字节的，后续元素prevlen要从1字节拓展到5字节，这又会导致元素自身的长度增加4字节，如果他也超过了253字节，再后续的元素也要1变5.。在listpack中只记录当前节点的长度。因此解决了连锁更新的问题。
 
 # **Redis 批量操作的⽅式有哪些**？
+用scan和del，删除指定模式的key，如"test*"删除以test前缀的key。
 
-首先是，**管道Pipeline**，它允许客户端一次性发送多个命令道redis服务器，只通过一次网络请求实现，然后一次性接受所有命令的响应。其次是**multi命令**，将一组命令打包成一个事务，顺序执行。然后是**lua脚本**，使用eval命令将lua脚本发送到redis服务器。最后是**mset命令**，针对多个键的批量操作命令。
+用pipeline管道传输。一次性发送多条命令到服务器，减少RTT。
+<!-- 首先是，**管道Pipeline**，它允许客户端一次性发送多个命令道redis服务器，只通过一次网络请求实现，然后一次性接受所有命令的响应。其次是**multi命令**，将一组命令打包成一个事务，顺序执行。然后是**lua脚本**，使用eval命令将lua脚本发送到redis服务器。最后是**mset命令**，针对多个键的批量操作命令。 -->
 
 # **为什么会有 Redis 内存碎⽚?如何清理 Redis 内存碎⽚**？
 
@@ -1168,26 +1294,27 @@ slave必须是在线才能参加新的master选举。选举有3个维度。第�
 
 使用槽的概念来管理分片，整个集群分为16384个槽，每个槽包含一定范围的健，redis用crc16哈希算法将键映射到某个槽，redis用Gossip协议传播集群状态信息，如节点状态和槽分配信息。
 
-# 为什么 Redis Cluster 的哈希槽是 16384 个?
+# 如何确定给定 key 的应该分布到哪个哈希槽中？
 
-哈希槽太大会导致心跳包太大，消耗太多带宽。
+首先计算key的crc16哈希值，假如结果为12345，然后计算槽编号，12345%16384，结果为4597，查找redis集群的槽到节点的映射表，找到负责4597的节点。
+
+# 为什么 Redis Cluster 的哈希槽是 16384 个?
+哈希槽太大会导致gossip消息太大，消耗太多带宽。
+<!-- 哈希槽太大会导致心跳包太大，消耗太多带宽。 -->
 
 哈希槽总数越少，对存储哈希槽信息的 bitmap 压缩效果越好。
 
 Redis Cluster 的主节点通常不会扩展太多，16384 个哈希槽已经足够用了。
 
-# 如何确定给定 key 的应该分布到哪个哈希槽中？
-
-首先计算key的crc16哈希值，假如结果为12345，然后计算槽编号，12345%16384，结果为4597，查找redis集群的槽到节点的映射表，找到负责4597的节点。
-
 # Redis Cluster ⽀持重新分配哈希槽吗？
-
-支持重新分配哈希槽，使用cluster addslots命令添加。
+redis-cli -a pass123 --cluster reshard 已存在节点IP:端口。指定要移动的哈希槽数量以及接收节点的ID。
+<!-- 支持重新分配哈希槽，使用cluster addslots命令添加。 -->
 
 # Redis Cluster 扩容缩容期间可以提供服务吗？
 
 扩缩容期间可以提供服务。提供了**重定向**机制。ASK 重定向:可以看做是临时重定向，后续查询仍然发送到旧节点。MOVED 重定向:可以看做是永久重定向，后续查询发送到新节点。
 
+扩容期间会同步原实例增量数据，扩容过程中实例进入只读状态。
 # Redis Cluster 中的节点是怎么进⾏通信的？
 
 基于gossip协议通信，节点之间会发送多种gossip信息。meet信息，将一个节点添加进cluster。ping pong信息，交换节点的状态信息，疑似下线状态pfail和下线状态fail。fail信息，a节点发现b节点pfail，并在下线报告有限期内cluster内半数以上节点将b标记未pfail则a广播fail消息通知大家b节点为fail。
@@ -1312,7 +1439,34 @@ AQS支持条件队列。
 
 组件有Reentrantlock，Semaphore，CountDownlatch等。本质上来说AQS提供了两种锁机制，排他锁和共享锁，Reentrantlock是排他锁，CountDownlatch和Semaphore是共享锁。
 
-# AQS线程怎么睡眠的，用的什么方法？（58同城）
+可重入底层实现：State表示锁的状态，当一个线程第一次获得锁时，State从0变为1，如果同一个线程再次获取，State递增。在tryAcquire方法中检查当前线程是否已经持有锁实现的。
+<!-- ```java
+import java.util.concurrent.locks.ReentrantLock;
+
+public class ReentrantLockExample {
+    private static ReentrantLock lock = new ReentrantLock();
+
+    public static void main(String[] args) {
+        // 线程1获取锁
+        lock.lock();
+        try {
+            System.out.println("线程1获取锁");
+            // 线程1再次获取锁（重入）
+            lock.lock();
+            try {
+                System.out.println("线程1再次获取锁");
+            } finally {
+                lock.unlock();
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+``` -->
+
+# AQS线程怎么睡眠的/AQS怎么定时等待的，用的什么方法？（58同城）
+参考。
 通过lockSupport park方法使线程进入睡眠状态，用unpark方法唤醒指定的线程。
 
 # 元空间中有什么？（小红书）
@@ -1360,7 +1514,7 @@ executor.scheduleAtFixedRate(() -> {
 }, 0, 5, TimeUnit.SECONDS);
 ```
 
-# 在开发者时候，可能我们的任务要产生任务b，然后任务 a 的往下执行可能要依赖任务 b 的结果。那如果说我把这两个任务都扔给线程池的话，它会出现什么样的问题（京东）
+# 在开发的时候，可能我们的任务要产生任务b，然后任务 a 的往下执行可能要依赖任务 b 的结果。那如果说我把这两个任务都扔给线程池的话，它会出现什么样的问题（京东）
 可能进入死锁，任务a在等待任务b的结果，而任务b无法获得执行的线程。
 
 ```java
@@ -1645,6 +1799,8 @@ public static void main(String[] args) throws InterruptedException {
 
 检查JVM参数：可以帮助我们分析内存使用情况。可以通过-XX:+HeapDumpOnOutOfMemoryError参数，在溢出时生成内存快照。还可以通过-XX:+PrintGCDetails打印GC日志。
 
+参考：https://juejin.cn/post/6908665391136899079
+
 # 线上的项目CPU异常飙高怎么排查解决？（得物多次考，百度，shopee，阿里，腾讯，滴滴，网易）
 线程分析。使用jstack工具，生成线程转储thread dump，分析哪些线程占用了大量CPU资源，查看高CPU线程的堆栈跟踪，定位到具体代码行。
 
@@ -1670,17 +1826,20 @@ public static void main(String[] args) throws InterruptedException {
 
 虚拟机栈：存储方法的局部变量，操作数栈，方法出口。当它无法为新的栈帧分配空间时，会抛出OOM。
 
+程序计数器
+
 # Java内存飙升怎么解决？（百度）
 识别内存泄漏：通过分析堆转储文件heap dump识别内存泄漏。
 
 监控和分析：用jvisualvm，jprofiler进行监控，找出内存使用异常的代码段，并优化。
 
 # 栈中存放什么数据，堆中呢？
-# 线程变量时在堆里面还是在栈里面？（58同城）
+# 线程变量是在堆里面还是在栈里面？（58同城）
 
 栈，存局部变量，方法调用信息，操作数栈，方法返回地址。堆存对象实例，数组。
 
-线程变量在虚拟机栈里面，而且是线程私有的。
+线程变量存储在堆里面，每个线程在访问threadlocal时，实际上通过threadlocal对象作为键，从当前线程的threadlocalmap获取对应的值。
+<!-- 线程变量在虚拟机栈里面，而且是线程私有的。 -->
 
 # ⼤对象放在哪个内存区域？
 
