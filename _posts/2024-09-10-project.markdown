@@ -1,3 +1,45 @@
+# 介绍一下自己做了哪些？
+我在分布式服务架构中实现了租户组管理功能，用protobuf新增了创建租户组和按组列出租户的rpc接口，并且集成KConf配置中台进行配置管理。
+
+实现细节：用LoadingCache进行性能优化，采用builder模式构造响应，实现了服务层之间的分离
+。
+
+技术选型：引入租户组作为租户管理的抽象层。
+
+收获：获得高流量环境下微服务架构实践经验，学会编写可维护的代码。
+
+# 服务层之间的分离是什么意思？展开讲一下。
+把代码分为控制器RPC层，服务层和数据访问层，控制器层处理请求响应并做验证，服务层是业务逻辑，数据访问层处理配置和存储。
+<!-- ```java
+// 控制器/RPC层 - 处理请求响应和基本验证
+@Override
+public ListTenantsByTenantGroupResponse listTenantsByTenantGroup(ListTenantsByTenantGroupRequest request) {
+    validateRequest(request);
+    return tenantService.listTenantsByGroup(request);
+}
+
+// 服务层 - 业务逻辑
+@Service
+public class TenantService {
+    @Autowired
+    private TenantBackendService tenantBackendService;
+    
+    public ListTenantsByTenantGroupResponse listTenantsByGroup(ListTenantsByTenantGroupRequest request) {
+        KconfSubConfig config = tenantBackendService.listTenantByStage(request.getStage(), KEY);
+        List<TenantDto> tenants = filterTenantsByGroup(config, request.getTenantGroupId());
+        return buildResponse(tenants);
+    }
+}
+
+// 数据访问层 - 处理配置和存储
+@Service
+public class TenantBackendService {
+    public KconfSubConfig listTenantByStage(String stage, String key) {
+        return kconfService.getConfig(stage, key);
+    }
+}
+``` -->
+
 # 项目介绍一下？某功能怎么实现的？
 技术栈：SpringBoot+Redis+grpc+MySQL。
 在这个项目中，我负责优化电商平台的推荐系统后端模块，他是开发人员修改投放引擎唯一入口。在灰度发布和多团队协作方面做了改进。灰度能力升级，我做了多租户架构优化，我重新设计了系统租户结构，引入租户组和子服务，让系统更具拓展性，实现租户组内的灰度能力。算子多人协作升级，使用容器云泳道功能实现。
