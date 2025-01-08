@@ -8,6 +8,33 @@
 
 收获：获得高流量环境下微服务架构实践经验，学会编写可维护的代码。
 
+<!-- ```java
+public ListTenantsByTenantGroupResponse listTenantsByTenantGroup(ListTenantsByTenantGroupRequest request) {
+    // Parameter validation
+    if (Objects.isNull(request) || StringUtils.isBlank(request.getTenantGroupId())) {
+        return ListTenantsByTenantGroupResponse.newBuilder()
+            .setBaseRespInfo(buildErrorResponse(PARAM_INVALID))
+            .build();
+    }
+
+    // Fetch and validate configuration
+    KconfSubConfig subConfig = tenantBackendService.listTenantByStage(request.getStage(), KEY);
+    List<TenantDto> tenantList = parseData(subConfig);
+    
+    // Business logic for filtering tenants by group
+    List<TenantDto> validTenantList = tenantList.stream()
+        .filter(tenant -> request.getTenantGroupId().equals(tenant.getTenantGroupId()))
+        .collect(Collectors.toList());
+
+    // Response construction
+    return ListTenantsByTenantGroupResponse.newBuilder()
+        .setBaseRespInfo(buildSuccessResponse())
+        .addAllInfo(buildSelectTenant(validTenantList))
+        .setTotal(validTenantList.size())
+        .build();
+}
+``` -->
+
 # 服务层之间的分离是什么意思？展开讲一下。
 把代码分为控制器RPC层，服务层和数据访问层，控制器层处理请求响应并做验证，服务层是业务逻辑，数据访问层处理配置和存储。
 <!-- ```java
@@ -39,6 +66,9 @@ public class TenantBackendService {
     }
 }
 ``` -->
+
+# LoadingCache展开讲一下。
+背景是每个请求都要从配置中心获取租户配置，这导致接口调用延迟。我们用Guava的LoadingCache，当缓存未命中时自动从配置中心加载，并设置过期时间，以及异步刷新（在写后刷新），并设置容量限制。
 
 # 项目介绍一下？某功能怎么实现的？
 技术栈：SpringBoot+Redis+grpc+MySQL。
