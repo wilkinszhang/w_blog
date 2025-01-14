@@ -1,0 +1,11 @@
+# 安卓的四大组件？
+
+activity，service，broadcastReceiver和contentProvider。
+
+一个activity代表一个屏幕，生命周期onCreate，onStart，onResume，onPause，onStop和onDestroy。
+
+service是后台运行的组件，分为startedService和boundService。startedService通过startService方法启动，boundService通过bindService绑定其他组件。
+
+broadcastReceiver接受系统或应用广播。可通过静态注册（在AndroidManifest.xml声明）或动态注册接受广播。
+
+contentProvider管理应用数据共享。开发者可以通过query，insert，update和delete操作数据。
