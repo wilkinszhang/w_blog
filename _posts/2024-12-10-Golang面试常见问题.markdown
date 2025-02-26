@@ -72,5 +72,8 @@
 # goroutine可能内存泄漏吗？为什么（B站）
 
 # 对于go sync.map底层如何实现并发安全？（百度）
+sync.Map内部维护了一个read字段，用于存储当前的读取视图。
+当有写操作发生时，如果当前的read视图正在被读取，则会创建一个新的写入视图，并在写入完成后更新read字段。
+读取操作则直接从read视图中获取数据，如果发现read视图已经被标记为过期，则会从最新的写入视图中重新加载数据。
 
 TODO ： https://github.com/xiaobaiTech/golangFamily
