@@ -1,5 +1,6 @@
 # golang内存逃逸概念，如何解决（腾讯）
 
+
 # GMP模型概念，作用（腾讯，美团）
 
 # go map怎么解决并发问题（腾讯）
@@ -69,5 +70,7 @@
 # go once（滴滴）
 
 # goroutine可能内存泄漏吗？为什么（B站）
+
+# 对于go sync.map底层如何实现并发安全？（百度）
 
 TODO ： https://github.com/xiaobaiTech/golangFamily
