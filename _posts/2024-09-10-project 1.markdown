@@ -2,91 +2,23 @@
 四旋翼绕障飞行器开发。
 
 # 介绍一下自己做了哪些？
-我在分布式服务架构中实现了租户组管理功能，用protobuf新增了创建租户组和按组列出租户的rpc接口，并且集成KConf配置中心进行配置管理。
 
-实现细节：用LoadingCache进行性能优化，采用builder模式构造响应，实现了服务层之间的分离
-。
 
-技术选型：引入租户组作为租户管理的抽象层。
+# 为什么要做这个项目？
+后续需要大量ab实验并观察结果，然后现有的投放引擎后端模块就会成为项目卡点。
 
-收获：获得高流量环境下微服务架构实践经验，学会编写可维护的代码。
+# 是什么意思？展开讲一下。
 
-<!-- ```java
-public ListTenantsByTenantGroupResponse listTenantsByTenantGroup(ListTenantsByTenantGroupRequest request) {
-    // Parameter validation
-    if (Objects.isNull(request) || StringUtils.isBlank(request.getTenantGroupId())) {
-        return ListTenantsByTenantGroupResponse.newBuilder()
-            .setBaseRespInfo(buildErrorResponse(PARAM_INVALID))
-            .build();
-    }
-
-    // Fetch and validate configuration
-    KconfSubConfig subConfig = tenantBackendService.listTenantByStage(request.getStage(), KEY);
-    List<TenantDto> tenantList = parseData(subConfig);
-    
-    // Business logic for filtering tenants by group
-    List<TenantDto> validTenantList = tenantList.stream()
-        .filter(tenant -> request.getTenantGroupId().equals(tenant.getTenantGroupId()))
-        .collect(Collectors.toList());
-
-    // Response construction
-    return ListTenantsByTenantGroupResponse.newBuilder()
-        .setBaseRespInfo(buildSuccessResponse())
-        .addAllInfo(buildSelectTenant(validTenantList))
-        .setTotal(validTenantList.size())
-        .build();
-}
-``` -->
-
-# 服务层之间的分离是什么意思？展开讲一下。
-把代码分为控制器RPC层，服务层和数据访问层，控制器层处理请求响应并做验证，服务层是业务逻辑，数据访问层处理配置和存储。
-<!-- ```java
-// 控制器/RPC层 - 处理请求响应和基本验证
-@Override
-public ListTenantsByTenantGroupResponse listTenantsByTenantGroup(ListTenantsByTenantGroupRequest request) {
-    validateRequest(request);
-    return tenantService.listTenantsByGroup(request);
-}
-
-// 服务层 - 业务逻辑
-@Service
-public class TenantService {
-    @Autowired
-    private TenantBackendService tenantBackendService;
-    
-    public ListTenantsByTenantGroupResponse listTenantsByGroup(ListTenantsByTenantGroupRequest request) {
-        KconfSubConfig config = tenantBackendService.listTenantByStage(request.getStage(), KEY);
-        List<TenantDto> tenants = filterTenantsByGroup(config, request.getTenantGroupId());
-        return buildResponse(tenants);
-    }
-}
-
-// 数据访问层 - 处理配置和存储
-@Service
-public class TenantBackendService {
-    public KconfSubConfig listTenantByStage(String stage, String key) {
-        return kconfService.getConfig(stage, key);
-    }
-}
-``` -->
 
 # 你用到了哪些设计模式？
-建造者模式，构建响应对象。
 
-单例模式，cache的实现使用了单例。
 
-代理模式，在服务层之间通过接口实现解耦，比如实现一个服务作为配置中心服务的代理。
+# 展开讲一下。
 
-# LoadingCache展开讲一下。
-背景是每个请求都要从配置中心获取租户配置，这导致接口调用延迟。我们用Guava的LoadingCache，当缓存未命中时自动从配置中心加载，并设置过期时间，以及异步刷新（在写后刷新），并设置容量限制。
 
 # 项目介绍一下？某功能怎么实现的？
 技术栈：SpringBoot+Redis+grpc+MySQL。
-在这个项目中，我负责优化电商平台的推荐系统后端模块，他是开发人员修改投放引擎唯一入口。在灰度发布和多团队协作方面做了改进。灰度能力升级，我做了多租户架构优化，我重新设计了系统租户结构，引入租户组和子服务，让系统更具拓展性，实现租户组内的灰度能力。算子多人协作升级，使用容器云泳道功能实现。
 
-租户灰度能力升级的实现。我引入更细力度的灰度控制机制，我在场景表中增加了ab测试字段，允许对子服务级别进行灰度发布，我实现了基于用户id或设备id的流量分配能力，利用LoadingCache缓存租户和子服务的配置信息，提高灰度判断效率。
-
-泳道的实现，和**k8s流量标**相关。在方案表中新增泳道字段，在后端引擎调度算子代码时，对环境进行判等，只有相等才会返回结果。
 
 多人协同参考：https://help.aliyun.com/zh/asm/use-cases/define-routing-rules-based-on-traffic-labels-1694487146614?spm=5176.28426678.J_HeJR_wZokYt378dwP-lLl.736.365a5181trASqb&scm=20140722.S_help@@%E6%96%87%E6%A1%A3@@2549873.S_RQW@ag0+BB2@ag0+BB1@ag0+os0.ID_2549873-RL_%E6%B5%81%E9%87%8F%E6%A0%87-LOC_search~UND~helpdoc~UND~item-OR_ser-V_4-P0_2
 
@@ -95,7 +27,6 @@ public class TenantBackendService {
 # 问一下业务细节，租户组，租户，子服务什么意思？（字节）
 租户**与k8s租户相关**，是**服务的独立实体**，比如快手电商，快手主站，一甜相机，每个租户有**自己的数据和配置**，但共享相同的基础设施。
 租户组是有**相似业务逻辑的集合**，这样做的好处是可以更灵活进行**策略管理**。
-子服务属于特定的租户组，子服务也可以有自己的业务模块。
 
 # 租户划分为租户组，是根据什么逻辑进行划分的呢？（网易）
 业务需求。不同租户属于不同业务线，比如快手主站，快手电商，一甜相机，这些业务线或部门有不同的需求和优先级。
@@ -107,9 +38,6 @@ public class TenantBackendService {
 
 网络策略可以控制pod之间的网络流量，限制命名空间之间的通信。
 
-# 动态扩缩容指的是什么？是流量的扩缩容还是机器扩缩容？（字节）
-是流量（计算资源）的扩缩容。
-
 # 对于你实习的项目，去掉技术相关的，业务是什么呢？（饿了么）
 <!-- 比如对于百亿补贴场景下，根据用户请求信息，查询资源位，查询投放任务，召回物料。 -->
 
@@ -117,9 +45,6 @@ public class TenantBackendService {
 
 参考：https://developer.aliyun.com/article/787513
 
-# 那比如说机器的扩缩容，基于哪些指标来做的操作呢？（童心制物）
-扩缩容的触发条件是QPS，响应时间，CPU和内存利用率等。
-扩缩容的自动化流程。监控，触发扩缩容命令，资源分配。
 
 # 不同租户之间的数据会做隔离吗？（童心制物）
 不会隔离，因为他们处在同一个租户组下面，共享流量。
@@ -168,9 +93,6 @@ rocketMQ消息：生成数据变更信息，发送到rocketMQ，
 
 更新缓存：redis更新缓存数据。
 
-# 为什么要做这个项目？
-后续需要大量ab实验并观察结果，然后现有的投放引擎后端模块就会成为项目卡点。
-
 # 项目开发过程中有遇到困难吗？怎么解决的？（科大讯飞）
 LoadingCache失效的问题，流程已经流转，QA提测，有不命中的问题，会爆NPE异常，当时排查了很久。
 
@@ -185,9 +107,6 @@ LoadingCache失效的问题，流程已经流转，QA提测，有不命中的问
 protobuf中，消息是键值对，编码后只有tag序列号和value值，序列号中有三个位存储类型。
 
 比如对于json数据{"name":"张三"}，JSON需要18字节序列化，他要保存整个字符串，而protobuf只需要存储name的字段号和张三的类型是字符串，而这两个信息只存在一个字节中。
-
-# ab测试你了解吗？ab测试能力核心是什么？（滴滴）
-ab测试核心是通过数据驱动决策，通过不同实验确定哪个更有效。为保证结果公平，需要对用户进行随机分组。
 
 # 为什么你的项目要有租户组的概念？直接水平扩容不行吗？（小红书）
 因为一个租户组下两个租户，在处理用户流量时，他们不是隔离的，我们要对流量进行分配，类似于网关，调度的东西。
@@ -270,20 +189,12 @@ public class PromotionTest {
 }
 ``` -->
 
-# 你提到了更灵活的灰度发布机制，能具体讲讲这个机制设计思路和实现过程吗？
-灰度发布的流程。流量分配，版本控制，监控和回滚机制。
 
 # 你在项目中重新设计了多租户架构，引入租户组和子服务，能解释一下这样设计的好处吗？
 租户是服务的实体，租户组是具有类似业务逻辑的集合，通过租户组，可以实现租户组之间隔离流量，租户之间共享流量，灵活性更强。
 
 # 介绍下项目的整体架构？（网易）
-项目主要分为三个模块。数据处理模块，业务逻辑模块和服务拓展模块。
 
-数据处理模块。protobuf序列化协议，采用protobuf保证高效。
-
-业务逻辑模块。租户管理，对租户的概念进行重构，将租户划分为租户组和子服务，实现动态扩缩容能力。
-
-服务扩展模块。在engine租户增加对灰度租户的路由逻辑，降低了上线风险。
 
 # 你在项⽬中遇到过 GC 问题吗？怎么分析和解决的？
 
