@@ -1,5 +1,5 @@
 # devOps
-![]https://github.com/wilkinszhang/picx-images-hosting/raw/master/c14c42bf-0725-40f8-8977-5043abc8dda5.3yejkf2vyq.webp
+![](https://github.com/wilkinszhang/picx-images-hosting/raw/master/c14c42bf-0725-40f8-8977-5043abc8dda5.3yejkf2vyq.webp)
 
 # 分布式定时任务适用场景
 大规模订单超时关闭，优惠券到期
@@ -22,7 +22,7 @@ O(1)的时间复杂度,插入和删除高效。
 需要毫秒级响应的业务。
 
 # 限流，熔断，降级的区别
-![]https://github.com/wilkinszhang/picx-images-hosting/raw/master/Snipaste_2025-01-20_09-03-04.1ovj1j53jq.webp
+![](https://github.com/wilkinszhang/picx-images-hosting/raw/master/Snipaste_2025-01-20_09-03-04.1ovj1j53jq.webp)
 
 # godotenv
 从env文件中读取配置，然后获取即可。

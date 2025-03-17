@@ -288,7 +288,7 @@ M对应操作系统线程。G是轻量级协程，由go运行时调度在多个M
 阻塞原因：1.等待其他Goroutine，如通过Channel。2.锁竞争。3.调度器阻塞，G没有可用的P。
 
 # go语言 P怎么调度G的（百度）
-![]https://github.com/wilkinszhang/picx-images-hosting/raw/master/gmp_relation.9rjjrr0tol.webp
+![](https://github.com/wilkinszhang/picx-images-hosting/raw/master/gmp_relation.9rjjrr0tol.webp)
 每个P有一个本地队列，存储要执行的Goroutine。
 
 当一个M绑定到P后，M会从P的本地队列中取出一个G执行。

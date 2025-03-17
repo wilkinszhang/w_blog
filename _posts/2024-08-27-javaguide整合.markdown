@@ -284,9 +284,9 @@ select * from users where id>5 and id<15 for update;
 范围查询。
 唯一索引的范围查询。还要分情况，如果是大于等于，那么这个行的next key会退化成记录锁，如果是小于等于，扫描到终止范围查询的行时，该行的索引的next key锁会退化成间隙锁。
 
-![]https://github.com/wilkinszhang/picx-images-hosting/raw/master/唯一索引锁的退化.4qrdhoh6o6.webp
+![](https://github.com/wilkinszhang/picx-images-hosting/raw/master/唯一索引锁的退化.4qrdhoh6o6.webp)
 
-![]https://github.com/wilkinszhang/picx-images-hosting/raw/master/非唯一索引锁的退化.ic67ur4sd.webp
+![](https://github.com/wilkinszhang/picx-images-hosting/raw/master/非唯一索引锁的退化.ic67ur4sd.webp)
 
 # 如果A是主键，查询语句是"A=0"，此时加的是record锁还是next-key锁？如果A不是主键而是非唯一索引呢？（得物）
 1.主键：行存在加行锁，不存在退化为间隙锁。
