@@ -83,56 +83,321 @@ Context是处理请求生命周期和跨api传递数据的工具。
 通信方式：Go提倡使用通道(channel)来进行goroutine之间的安全通信，这种方式比直接共享内存要简单得多也安全得多。而对于多线程应用来说，处理好同步问题往往比较复杂，容易出现竞态条件等问题。
 
 # go语言中数组和切片区别？（字节）
+长度固定：数组声明时需指定长度。切片长度动态，用append扩展。
+
+传递方式：数组值传递，切片是引用类型，包含指针、长度len和容量cap。
 
 # go语言结构体作为参数传递时是传值还是传指针（字节）
+结构体是值传递。
 
 # go语言如何对map排序（字节）
+map底层无序。排序可以用切片和sort实现。
+
+按键排序：1.提取map所有键存入切片。 2.对键的切片排序。 3.遍历排序后的键切片，顺序访问map的值。
+
+按值排序：1.定义结构体切片，存键和值。 2.填充切片。 3.用sort Slice自定义排序规则。
 
 # go语言垃圾回收机制（字节）
+机制：三色标记清除法。标记阶段，将对象分为白，灰黑，从根对象（栈、全局变量）出发，递归标记可达对象。清除阶段，回收未标记的白色对象。
+
+工作流程：1.stw初始标记，扫描根对象。 2.并发标记，用写屏障记录并发修改。 3.stw重新标记。 4.并发清除。
+
+触发条件：默认当堆内存大小达到上次gc存活对象的两倍（由gogc环境变量调整）。
 
 # go语言中并发utils了解多少（字节）
+Goroutine和Channel：Goroutine是轻量级线程，Channel用于协程间通信。
+
+sync包：1.mutex rwmutex互斥锁和读写锁。2.waitgroup：等一组Goroutine完成。once：保证代码执行一次。
+
+atomic包：提供原子操作，add，cas。
+
+context包：传递取消信号，控制多级Goroutine生命周期。
 
 # go语言如何两个协程实现奇偶交替打印（百度）
+定义两个Channel，分别用于奇数线程和偶数线程信号传递。
+
+奇数线程收到信号后打印一个奇数，然后向偶数协程发信号；偶数协程收到信号后打印偶数，将控制权交给奇数线程。
+
+主线程启动后，先发送一个信号给奇数线程启动打印。
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	oddCh := make(chan bool)  // 奇数打印协程信号通道
+	evenCh := make(chan bool) // 偶数打印协程信号通道
+
+	// 奇数打印协程
+	go func() {
+		for i := 1; i < 10; i += 2 { // 假设打印 1,3,5,7,9
+			<-oddCh        // 等待信号
+			fmt.Println(i) // 打印奇数
+			evenCh <- true // 通知偶数协程继续
+		}
+	}()
+
+	// 偶数打印协程
+	go func() {
+		for i := 2; i <= 10; i += 2 { // 假设打印 2,4,6,8,10
+			<-evenCh       // 等待信号
+			fmt.Println(i) // 打印偶数
+			oddCh <- true  // 通知奇数协程继续
+		}
+	}()
+
+	// 启动流程：先给奇数协程发送信号
+	oddCh <- true
+
+	// 为了防止主函数退出，这里用 select 阻塞
+	//select {}
+	time.Sleep(1 * time.Second)
+}
+
+```
 
 # go语言按照列遍历二维切片（百度）
+参考。
+可以先确定列数，再逐列访问每一行元素。
+```go
+package main
+
+import (
+	"fmt"
+)
+
+func main() {
+	// 定义一个二维切片（假设为规则矩阵，每行长度相同）
+	matrix := [][]int{
+		{1, 2, 3},
+		{4, 5, 6},
+		{7, 8, 9},
+	}
+
+	// 获取行数和列数
+	rows := len(matrix)
+	if rows == 0 {
+		return
+	}
+	cols := len(matrix[0])
+
+	// 按列遍历
+	for j := 0; j < cols; j++ { // 外层循环遍历列
+		for i := 0; i < rows; i++ { // 内层循环遍历行
+			fmt.Printf("%d ", matrix[i][j])
+		}
+		fmt.Println() // 每遍历完一列换行输出
+	}
+}
+
+```
 
 # go语言的goroutine是什么（百度）
+Goroutine是go轻量级线程。Goroutine的初始栈空间非常小，且由go运行时调度器管理。
 
 # go语言实现发布订阅模型（百度）
+用Channel实现，发布订阅模型是发布者发布消息，订阅者接收感兴趣的消息，且订阅者异步接收。
+```go
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+// 定义消息结构体
+type Message struct {
+	Topic   string
+	Content string
+}
+
+// 发布者
+type Publisher struct {
+	subscribers map[string][]chan Message
+	mu          sync.RWMutex
+}
+
+// 创建一个新的发布者
+func NewPublisher() *Publisher {
+	return &Publisher{
+		subscribers: make(map[string][]chan Message),
+	}
+}
+
+// 发布消息
+func (p *Publisher) Publish(topic string, msg Message) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if chans, ok := p.subscribers[topic]; ok {
+		for _, ch := range chans {
+			ch <- msg
+		}
+	}
+}
+
+// 订阅消息
+func (p *Publisher) Subscribe(topic string) chan Message {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	ch := make(chan Message)
+	p.subscribers[topic] = append(p.subscribers[topic], ch)
+	return ch
+}
+
+// 主程序
+func main() {
+	publisher := NewPublisher()
+
+	// 订阅者1订阅"news"主题
+	subscriber1 := publisher.Subscribe("news")
+	// 订阅者2订阅"news"主题
+	subscriber2 := publisher.Subscribe("news")
+
+	// 启动订阅者1的接收消息 goroutine
+	go func() {
+		for msg := range subscriber1 {
+			fmt.Printf("Subscriber1 received: %s\n", msg.Content)
+		}
+	}()
+
+	// 启动订阅者2的接收消息 goroutine
+	go func() {
+		for msg := range subscriber2 {
+			fmt.Printf("Subscriber2 received: %s\n", msg.Content)
+		}
+	}()
+
+	// 发布消息到"news"主题
+	publisher.Publish("news", Message{Topic: "news", Content: "Hello, World!"})
+	publisher.Publish("news", Message{Topic: "news", Content: "Go is awesome!"})
+
+	// 让主程序等待一会儿
+	time.Sleep(1 * time.Second)
+}
+```
 
 # go语言 GMP中M对应的内核的什么，G除了系统调用会阻塞还有什么会阻塞（百度）
+M对应操作系统线程。G是轻量级协程，由go运行时调度在多个M上执行，P是调度器。每个M绑定一个P来执行G，但一个M可以与多个P交替工作。
+
+阻塞原因：1.等待其他Goroutine，如通过Channel。2.锁竞争。3.调度器阻塞，G没有可用的P。
 
 # go语言 P怎么调度G的（百度）
+![]https://github.com/wilkinszhang/picx-images-hosting/raw/master/gmp_relation.9rjjrr0tol.webp
+每个P有一个本地队列，存储要执行的Goroutine。
+
+当一个M绑定到P后，M会从P的本地队列中取出一个G执行。
+
+如果P队列为空，M会从其他P上偷取Goroutine执行。
+
+执行完一个G后，M继续从P队列中取下一个G。
 
 # go语言 defer怎么用的（百度）
+defer用于延迟函数的执行，用于关闭文件，解锁互斥锁。多个defer按照后进先出顺序执行。defer在函数返回之前执行，但是在return语句执行之后。
 
 # go语言 cap和len区别（百度）
+cap返回切片容量，len返回切片实际长度。
 
 # go语言能往已经closed的Channel写数据吗（百度）
+会导致panic。
 
 # go语言 ：=和=的区别（百度）
+：=声明并初始化一个新变量，=将一个已声明的变量赋值一个新值。
 
 # go语言有几种锁，乐观锁怎么实现的（百度）
+互斥锁mutex，读写锁rwmutex，条件变量cond。
+
+乐观锁实现：读取当前值，计算新值，用cas更新，如atomic CompareAndSwap系列函数。
 
 # go语言 Channel有缓冲和无缓冲区别（百度）
+无缓冲：同步传递，他没有内部队列，发送和接收必须同时发生，当一个Goroutine向无缓冲Channel发送数据时，如没有其他Goroutine等待接收，发送会阻塞。
+
+有缓冲：内部有队列，只有缓冲区满发送才会阻塞。适用于生产者消费者模型。
 
 # go语言值传递和引用传递区别（腾讯云智）
+所有参数都是值传递。数组也是值类型，直接传递会复制数组。
+
+可以用指针实现在函数中修改原变量。
+
+切片、map、Channel、interface：虽然也是值传递，但内部封装了指针，修改他们会影响原数据。
 
 # go语言子gouroutine的panic会不会被父g捕获（滴滴）
+不会。
 
 # 给你10个goroutine，如何打印出升序数字（滴滴）
+用链式Channel。
+```go
+package main
 
-# go语言 sema（滴滴）
+import (
+	"fmt"
+)
 
-# go语言 waitgroup（滴滴）
+func main() {
+	// 构造10个 channel，用于传递信号
+	chs := make([]chan struct{}, 10)
+	for i := range chs {
+		chs[i] = make(chan struct{})
+	}
 
-# go语言 once（滴滴）
+	// 启动10个 goroutine，每个 goroutine 负责打印一个数字
+	for i := 0; i < 10; i++ {
+		go func(i int) {
+			// 除了第一个 goroutine，其它都需要等待前一个信号
+			if i > 0 {
+				<-chs[i-1]
+			}
+			// 打印数字（这里假设我们打印的是1~10）
+			fmt.Println(i + 1)
+			// 通知下一个 goroutine继续执行
+			if i < 9 {
+				close(chs[i])
+			}
+		}(i)
+	}
+
+	// 等待最后一个 goroutine 执行完（也可以用其它方式等待，比如 sync.WaitGroup）
+	<-chs[9]
+}
+
+```
+
+<!-- # go语言 sema（滴滴） -->
+
+
+# go语言 waitgroup原理（滴滴）
+waitgroup是同步原语，等待一组Goroutine完成。内部维护计数器，wg add(n)将计数器增加n，启动n个并发任务，每个Goroutine完成后，需调用wg done，将计数器减一。
+
+计数值的低32位是未完成任务数量，高32位是当前等待的Goroutine数量。
+
+# go语言 once原理（滴滴）
+状态标记：once内部有状态标记done，记录是否执行过目标函数。还维护了互斥锁，保护状态。
+
+双重检查：1.第一次检查：调用方法时，先通过原子操作atomic loadUnit32检查done的值，不为0直接返回。2.获取互斥锁，再检查done的值。如为0，调用目标函数，用defer在目标函数执行完后，将done设为1。
+
 
 # goroutine可能内存泄漏吗？为什么（B站）
+可能。
+
+阻塞 ：Goroutine等待永远不会受到数据的Channel操作。
 
 # 对于go语言 sync.map底层如何实现并发安全？（百度）
-sync.Map内部维护了一个read字段，用于存储当前的读取视图。
+只读map：保存在原子变量中，不可变，可多个Goroutine共享。
+
+脏map：有互斥锁。如果一个键在只读map没找大，且map状态是已修改，则获取锁去脏map查找。
+
+miss计数：当只读map没找到去脏map查找次数达到一定阈值，将脏map整体复制到只读map。
+<!-- sync.Map内部维护了一个read字段，用于存储当前的读取视图。
 当有写操作发生时，如果当前的read视图正在被读取，则会创建一个新的写入视图，并在写入完成后更新read字段。
-读取操作则直接从read视图中获取数据，如果发现read视图已经被标记为过期，则会从最新的写入视图中重新加载数据。
+读取操作则直接从read视图中获取数据，如果发现read视图已经被标记为过期，则会从最新的写入视图中重新加载数据。 -->
+
+# go语言map并发访问时panic如何实现的（小米）
+状态：map内部有状态，一个Goroutine开始写操作，会设置状态。在每次对map读写，运行时会检查这个状态，检测到并发访问，map调用runtime throw，触发panic。
+
 
 TODO ： https://github.com/xiaobaiTech/golangFamily

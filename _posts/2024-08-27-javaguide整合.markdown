@@ -210,8 +210,8 @@ orderby：列数据进行排序。
 参考。
 A正常提交，说明未被事务B的锁阻塞，且事务B的UPDATE在事务A提交后执行，最终金额为A先修改B后修改的值。事务B在可重复读隔离级别下能看到A提交后的结果。
 
-参考2。
-从题目描述的场景出发，这是一个不可重复读，在可重复读隔离级别不会发生。
+<!-- 参考2。
+从题目描述的场景出发，这是一个不可重复读，在可重复读隔离级别不会发生。 -->
 
 # mysql什么时候加行锁，什么时候加间隙锁？（腾讯）
 行锁：当用唯一索引进行等值查询且命中时，加行锁。
@@ -289,9 +289,9 @@ select * from users where id>5 and id<15 for update;
 ![]https://github.com/wilkinszhang/picx-images-hosting/raw/master/非唯一索引锁的退化.ic67ur4sd.webp
 
 # 如果A是主键，查询语句是"A=0"，此时加的是record锁还是next-key锁？如果A不是主键而是非唯一索引呢？（得物）
-主键：行存在加行锁，不存在退化为间隙锁。
+1.主键：行存在加行锁，不存在退化为间隙锁。
 
-非唯一索引：
+2.非唯一索引：
 
 行存在，对符合查询条件的二级索引加临键锁，对第一个不符合查询条件的二级索引加间隙锁。
 
@@ -300,15 +300,16 @@ select * from users where id>5 and id<15 for update;
 当其他事务插入一条 age=39，id=21 的记录的时候，在二级索引树上定位到插入的位置，而该位置的下一条记录不存在，也就没有间隙锁了，所以这条插入语句可以插入成功。
 
 # select * from user where userid=5 for update，假如userid是索引但是没有5这个数据，锁的是什么？假如没有索引也没有5这个数据，锁的是什么？（快手）
-间隙锁，比如数据(1, 'User1'),(2, 'User2'),(7, 'User7'),(8, 'User8'); (2,7)。
+1.间隙锁，比如数据(1, 'User1'),(2, 'User2'),(7, 'User7'),(8, 'User8'); 锁定(2,7)，即此id上一个记录到下一个记录之间的间隙。
 
 <!-- 表锁。 -->
-也是间隙锁，所有主键的间隙。注：如果这时修改主键值会被阻塞，因为插入新值需要获取间隙锁。
+2.也是间隙锁，所有主键的间隙。注：如果这时修改主键值会被阻塞，因为插入新值需要获取间隙锁。
 
 # 如果A是非唯一索引，表里只有"A=1"和"A=10"两条数据，此时有两条命令："SELECT * FROM ... WHERE A=5 FOR UPDATE"；"SELECT * FROM ... WHERE A=6 FOR UPDATE"。请问这两条命令会互斥吗，什么时候互斥、什么时候不互斥？（得物）
-会互斥，锁定的数据是10, 2。如果他们执行插入命令有一个会阻塞。在可重复读和读已提交都互斥。
+不互斥，加间隙锁，但如果其中一个事务往间隙锁的区间插入数据，此时是互斥的。
+<!-- 会互斥，锁定的数据是10, 2。如果他们执行插入命令有一个会阻塞。在可重复读和读已提交都互斥。
 
-这个场景描述的是脏读问题，在读已提交和可重复读不会发生。
+这个场景描述的是脏读问题，在读已提交和可重复读不会发生。 -->
 
 # MySQL怎么创建写锁？（得物）
 select for update加写锁
@@ -458,6 +459,9 @@ Redisson库。
 
 使用逻辑时钟：即使物理时钟回拨，逻辑时钟仍然单调递增。
 
+# 雪花算法。由符号位，时间戳，机器号和序号组成，怎么保证全局有序性？时间戳只会增大不会减小，序号可以保证一毫秒内的有序性。那你同一毫秒内机器号大的生成序号小，最后总大小反而大怎么办？（字节）
+在同一毫秒内，虽然是按机器号与序号共同排序，但他不会破坏全局有序性。雪花算法他只能保证按字段组合的有序性，在同一毫秒，不同机器之间的序号根本就不能比，不保证他们之间的顺序，能保证的只能是同一毫秒内，同一机器内按序号排序。
+
 # 分布式锁一个线程锁过期了另一个线程拿到了怎么办？如果是宕机导致过期，又该怎么办？（小红书）
 # 如果分布式锁到期了，没有完成锁内部逻辑调用怎么办？（得物）
 # redis分布式锁为什么会出现a线程释放b线程锁的情况。（作业帮）
@@ -562,6 +566,11 @@ get(key)，put(key,value)时间复杂度为O 1。
 双向链表维护数据访问顺序，头部表示最近使用的数据，尾部表示最久未使用的数据。
 
 哈希表快速查找链表节点。
+
+# lru和lfu的原理，lru和lfu可以有什么优化（腾讯）
+lru：数据最近被访问过，将来被访问可能性较大。实现：hashmap与双向链表，hashmap用于o1查找，双向链表维持元素顺序。优化：1.并发环境引入并发链表和分段锁。2.分段lru：2q算法，将缓存分为两部分，一个存初次放入的短期数据，一个存经过时间考验的长期数据。防止缓存污染问题。
+
+lfu：如果数据被访问频率低，将来被访问的概率也较小。实现：计数器。优化：1.o1复杂度：用频率桶，将所有访问频率相同数据放到一个桶，维护桶之间顺序。2.惰性更新：不是每次访问都立即更新频率，而是将更新延迟到一定时机批量处理。
 
 # LRU为什么要双向链表？能不能是队列？（快手）
 存储在双向链表中的数据，可能要把这个数据删除，删除节点要获取前驱节点，如果不是双向链表，就得从头遍历。
@@ -887,6 +896,13 @@ public class RedisTransactionExample {
 # 为什么hashmap在链表元素超过8时转化为红黑树？（网易，百度）
 因为8个元素时红黑树是4层，超过后红黑树还是4层，而链表平均查找次数大于红黑树，所以在这个时候发生转化。
 
+# ConcurrentHashMap,HashTable,HashMap的各自实现细节，不同之处，具体应用场景（美团）
+hashmap：数组链表红黑树。hashtable：数组链表，没有红黑树。concurrenthashmap：数组链表红黑树。
+
+不同：hashmap线程不安全，hashtable线程安全但性能较低，concurrenthashmap线程安全且性能好。
+
+具体应用场景：hashmap用于单线程环境或用外部锁缓存数据。hashtable不推荐使用。concurrenthashmap用于会话管理。
+
 # 红黑树什么样的？（腾讯）
 每个节点是红色或黑色。根节点是黑色，叶子节点NIL节点是黑色。红色节点子节点必须是黑色的。从任意节点到其余每个叶子的路径包含相同数目的黑色节点。
 
@@ -993,7 +1009,7 @@ short，int， long， double， float， boolean， char和 byte，八种
 
 # String str1=“abc”和String str2=new String("abc")他们是一样的吗? （滴滴考过，百度）
 
-str1在堆中创建1个对象，在堆中的字符串常量池中**驻留了**str1的引用。其实方法区中也有常量池，但是叫运行时常量池。str2会创建2个对象，并且两个都是在堆中创建的。第三种情况，如果两个代码先后执行，那么str2会创建1个对象。
+<!-- str1在堆中创建1个对象，在堆中的字符串常量池中**驻留了**str1的引用。其实方法区中也有常量池，但是叫运行时常量池。str2会创建2个对象，并且两个都是在堆中创建的。第三种情况，如果两个代码先后执行，那么str2会创建1个对象。 -->
 
 str1如果常量池存在"abc"，不创建对象；如果不存在"abc"，在常量池创建1个对象。
 
@@ -1251,6 +1267,9 @@ CPU密集型：线程数等于核心数。
 <!-- 任务特性：CPU密集型或IO密集型。
 系统资源：CPU核心数，内存容量。 -->
 
+# 2000qps，响应时间100ms，四核，I/O密集型，怎么设置核心线程数（网易）
+线程数=cpu核数/（1-阻塞系数）。阻塞系数是线程在等待io所占的比例，假设这里为0.9。核心线程数=40。2000qps，100ms的响应时间，**意味着系统要同时处理200个并发请求**，线程池应结合200设计最大线程数。
+
 # 线程池怎么判断一个线程是否空闲？谁来判断？（百度）
 线程状态监控：线程池通过ThreadPoolExecutor类中的Worker对象管理线程，用一个AtomicInteger变量记录线程执行状态runState和线程数量workCnt。keepAliveTime定义了线程空闲时间。
 
@@ -1385,6 +1404,11 @@ hashmap是基于哈希表的数据结构，通过哈希函数将键映射到一�
 自旋锁，非自旋锁。
 
 可中断锁，不可中断锁。 -->
+
+# 公平与非公平分别用在什么具体场景（美团）
+公平锁：1.订单系统，用公平锁，可确保请求按队列顺序被执行。2.关键资源：多租户系统，数据库连接必须按请求顺序分配。
+
+非公平锁：高并发业务，如秒杀场景，更看重吞吐量和响应速度。
 
 # 对象锁和类锁的区别？（百度考过）
 对象锁时针对某个具体对象实例的锁，类锁是针对整个类的锁。
@@ -1576,6 +1600,9 @@ java -cp . MyClass，jvm在当前路径下找不到MyClass.class文件。
 
 类版本冲突，linkage error。当jvm尝试加载一个类时，如果类的定义和之前加载的类版本不兼容，就会抛出linkage error。
 
+# 静态变量什么时候赋值？（携程）
+类加载时。1.加载类文件。2.验证规范。3.准备内存，这时为静态变量分配内存，设置默认值。4.解析引用。5.初始化static块，静态变量赋值。
+
 # 不同的class loader可以加载同名class吗？他们是同一个对象吗？（小红书）
 可以加载同名的class，每个classloader有自己的命名空间，即使两个classloader加载了同名class，他们实际上是两个不同的class对象。
 
@@ -1622,9 +1649,12 @@ TreeSet：用红黑树存储元素，通过元素自然顺序或比较器判断�
 treeset不允许存储null值，原因是treeset的排序机制：用comparable接口或Comparator接口比较元素。如果允许存储null值，在比较时导致nullPointerException，因为null不能和任何对象比较。
 
 Concurrenthashmap不支持null键和null值。在单线程环境下，get null判断null键是否存在可以通过contains判断，但在多线程环境下，不能保证在调用 contains 方法之前，null 键的状态没有发生变化。
+
+hashmap允许存null值。内部对null键进行了专门处理。它允许一个null键，并且多个键可以映射为null值。在实现中，hashmap会判断key==null的情况，而不是hashcode方法，避免npe。调用get方法返回null，可通过containsKey确认键是否存在。
+
 <!-- 因为并发环境下null值可能导致歧义和错误。如某个键的值为null，无法区分是键不存在还是对应的值确实为null。 -->
 
-hashmap可以存入null值是为了灵活性。当键为null时，hashmap将其存储在特定的位置，数组的第一个位置，而不是通过哈希函数计算位置。
+<!-- hashmap可以存入null值是为了灵活性。当键为null时，hashmap将其存储在特定的位置，数组的第一个位置，而不是通过哈希函数计算位置。 -->
 
 # 说一说自己对synchronized关键字的理解
 
@@ -1707,7 +1737,12 @@ volatile保证变量可见性。
 happens-before原则，保证有序性。
 
 # 单处理器有可见性问题吗？（字节）
-有可见性问题。volatile的意义在于保证线程间的可见性，和单核多核无关，即使只有一个处理器，线程也有自己的工作内存（本地缓存），线程可能从工作内存读取变量的值，而不是主存。
+有可见性问题。
+
+编译器处理器优化：即使在单处理器，编译器和cpu会对代码优化和指令重排序，可能打破代码预设的执行顺序，导致一个线程对共享变量的修改在另一个线程中未能按预期可见。
+
+线程切换本地缓存：多线程在单处理器运行时，由于线程各自使用的寄存器，可能导致共享变量最新值没有及时刷新到主存。
+<!-- 有可见性问题。volatile的意义在于保证线程间的可见性，和单核多核无关，即使只有一个处理器，线程也有自己的工作内存（本地缓存），线程可能从工作内存读取变量的值，而不是主存。 -->
 
 # i++是线程安全的吗？有什么解决办法？（得物）
 不是线程安全。
@@ -1770,11 +1805,14 @@ Reentrantlock提供了condition接口，可以通过newCondition方法创建多�
 <!-- 当线程释放锁时，计数器递减，只有计数器归零，锁才会真正释放。 -->
 
 # reentrantlock公平和非公平的实现原理是什么？（京东，阿里，快手）
-公平锁通过FairSync类实现，内部使用AQS的acquire方法。当一个线程请求锁时，**如果锁已经被占用（队列不为空）**，线程会被放入AQS等待队列中，按照FIFO顺序等待。
+公平锁：1.队列优先：公平锁尝试获取锁之前，先用hasQueuedPredecessors方法检查当前等待队列是否有其他线程排队，如存在排队线程，则不抢占。2.tryAcquire：如果状态为0（锁未被持有），先判断队列是否有优于自己的线程；只有没有先行线程，才通过cas获取锁。如果自己已持有锁，增加状态值。
+
+非公平锁：1.抢占：获取锁时直接用cas，不管其他线程。2.tryAcquire：先用cas将状态改为锁定；若失败则进入AQS等待队列排队。
+<!-- 公平锁通过FairSync类实现，内部使用AQS的acquire方法。当一个线程请求锁时，**如果锁已经被占用（队列不为空）**，线程会被放入AQS等待队列中，按照FIFO顺序等待。
 
 当锁被释放时，AQS会从队列头部取出等待时间最长的线程，保证公平。
 
-非公平锁用Non fair Sync类实现，也是用AQS的acquire方法。当一个线程请求锁时，如果**获取锁失败**，线程进入等待队列，但不保证FIFO顺序，允许插队。
+非公平锁用Non fair Sync类实现，也是用AQS的acquire方法。当一个线程请求锁时，如果**获取锁失败**，线程进入等待队列，但不保证FIFO顺序，允许插队。 -->
 
 # AQS为什么用双向链表？（得物，场景题）
 <!-- AQS用双向链表管理等待线程的队列。
@@ -1842,7 +1880,7 @@ Reentrantlock是java中的一种可重入锁，允许一个线程多次获取同
 **当持有锁的线程释放锁**，调用unlock方法时，**aqs的state字段会减1**。如果state字段减到0，表示锁已经被完全释放，aqs会从队列中**唤醒一个等待的线程**，尝试让他获取锁。
 
 # synchronized和Reentrantlock哪个性能更好？（小红书）
-在java6及以后的版本中，synchronized和Reentrantlock的性能差距已经很小。低并发时synchronized可能更优，而高并发下Reentrantlock的灵活性如条件变量、可中断会有更高吞吐量。实际西安则应看场景：
+在java6及以后的版本中，synchronized和Reentrantlock的性能差距已经很小。低并发时synchronized可能更优，而高并发下Reentrantlock的灵活性如条件变量、可中断会有更高吞吐量。实际性能则应看场景：
 
 若只需基础同步，优先用synchronized。
 
@@ -1890,6 +1928,9 @@ static class Entry extends WeakReference<ThreadLocal<?>> {//key是继承自weakR
 
 成员变量包装类型不赋值就是null，而基本类型有**默认值**且不是null。
 
+# 基本类型都是在栈中吗（网易）
+取决于变量的声明位置。基本类型局部变量存在栈中；而基本类型作为对象的字段或全局变量存在，对象在堆中。
+
 # 除了clone还有哪些方式可以对对象进行深拷贝？
 使用第三方库，如**apache commons lang**库的serialization utils的clone方法，这个方法是通过序列化和反序列化实现深拷贝的。
 **使用json序列化**，将对象转化为json字符串，然后再将json字符串反序列化为新对象，适合跨平台传输场景。
@@ -1919,6 +1960,13 @@ hashmap，hashset依赖于hashcode确定对象的存储位置，如果hashcode�
 装箱是将基本类型用他们对应的引用类型包装起来，发生在编译阶段。拆箱是将包装类型转换为基本类型。自动拆箱可引发NPE问题。比如一个包装类型Integer是null，那么他去执行intValue会报NPE异常。
 
 装箱原理是valueOf方法，拆箱原理是intValue方法。
+
+# 装箱拆箱怎么去优化性能（网易）
+避免不必要的装箱拆箱。用具体类型或泛型，避免将值类型转化为object类型。
+
+用泛型替代object类型。在集合类中，用list<T>替代ArrayList，避免因为存储值类型而产生的装箱操作。
+
+缓存：如某个值在多处被装箱，提前将他装箱缓存。
 
 # 接口和抽象类有什么共同点和区别？（美团）
 接口是完全抽象的类，只包含方法的声明，没有实现，没有方法体。它用来定义行为规范，一个类可以实现多个接口。
@@ -2244,7 +2292,7 @@ Minor GC作用在年轻代（Elden+Survivor），触发条件是Enden区分配�
 
 Major GC作用在老年代，触发条件是老年代空间不足，用标记清除如CMS算法。
 
-Full GC作用在整个堆+方法区，触发条件是老年代or方法区空间不足，用标记-清除-整理算法。
+Full GC作用在整个堆+方法区，触发条件是老年代或方法区空间不足，用标记-清除-整理算法。
 <!-- Minor GC主要针对新生代进行垃圾回收；Major GC针对老年代的垃圾回收；Full GC涵盖整个堆（包括新生代、老年代）以及方法区的垃圾回收。 -->
 
 # JVM为什么进行分代管理？（腾讯）
@@ -2290,13 +2338,13 @@ jit编译后的代码在**代码缓存区域code cache**，通常位于堆外内
 # 讲一讲对象的创建过程（shopee）
 # 在new一个对象时，jvm做了什么？（阿里，得物）
 
-类加载。在代码中使用一个类时，jvm会检查这个类是否已加载，如果没有，jvm通过类加载器加载类，读取类字节码，转化为jvm内部的class对象。
+1.类加载。在代码中使用一个类时，jvm会检查这个类是否已加载，如果没有，jvm通过类加载器加载类，读取类字节码，转化为jvm内部的class对象。
 
-分配内存。接下来，jvm为对象分配内存。内存分配的位置取决于对象的大小和jvm内存管理策略，通常，对象被分配到堆中，但也有可能被分配到栈中，比如一些小的生命周期短的对象。
+2.分配内存。接下来，jvm为对象分配内存。内存分配的位置取决于对象的大小和jvm内存管理策略，通常，对象被分配到堆中，但也有可能被分配到栈中，比如一些小的生命周期短的对象。
 
-初始化。然后jvm会进行初始化操作，包括调用类的构造方法，并按照声明的顺序初始化类的成员变量。
+3.初始化。然后jvm会进行初始化操作，包括调用类的构造方法，并按照声明的顺序初始化类的成员变量。
 
-对象引用。最后jvm会返回这个对象的引用，这个引用可以被赋值给一个变量。
+4.对象引用。最后jvm会返回这个对象的引用，这个引用可以被赋值给一个变量。
 
 # 内存分配的两种方式？给对象分配内存的方式？（得物）
 
@@ -2459,7 +2507,7 @@ DNS解析：将网址转化为IP地址。向DNS服务器发送查询请求，获
 # 浏览器发生302跳转背后的逻辑?（携程）
 302是临时重定向。当服务器接收到一个请求时，如果发现请求的资源已经临时移动到另一个位置，服务器会返回一个302状态码，并在响应头中包含一个新的**location**字段，指向资源的新地址。
 
-浏览器在接收到302状态码后，会**自动发起一个新请求**，访问location字段中指定的url，这个过程对用户透明。
+浏览器在接收到302状态码后，会**自动发起一个新请求**，访问location字段中指定的url，这个过程对用户透明，需要注意的是：1.如果原请求时POST，浏览器会转化为GET请求，这也是在需要保留原请求方法时http1.1引入307状态码的原因。2.重定向请求不会保留原请求体，但会携带cookie。
 
 # HTTP和HTTPS的区别？（科大字节考过，腾讯）
 
@@ -2602,7 +2650,7 @@ HTTP通过session和cookie保存用户状态，session保存在server，相对�
 物理层：通过光纤或无线信号通信，数据在这一层被转换为比特流通过物理介质传输。
 
 
-# 为什么三次握手？而不是两次或四次？（滴滴考过，58同城，腾讯，叮咚买菜）
+# 为什么TCP三次握手？而不是两次或四次？（滴滴考过，58同城，腾讯，叮咚买菜）
 # 讲一下tcp四次挥手？（作业帮）
 # 讲一下TCP三次握手四次挥手（shopee）
 # TCP三次握手四次挥手的状态？（腾讯多次考）
@@ -2614,10 +2662,10 @@ HTTP通过session和cookie保存用户状态，session保存在server，相对�
 <--
 <--
 -->
-避免历史连接。防止**两次握手**，旧SYN包到达服务器，服务器直接进入ESTABLISHED状态，但客户端已放弃，浪费服务器资源。三次握手，客户端会发送RST重置无效连接。
+1.避免历史连接。防止**两次握手**，旧SYN包到达服务器，服务器直接进入ESTABLISHED状态，但客户端已放弃，浪费服务器资源。三次握手，客户端会发送RST重置无效连接。
 <!-- 避免历史连接。防止**两次握手**，旧的重复连接初始化造成混乱。 -->
 
-同步双方初始序列号。客户端的syn报文需要服务端回一个ack应答报文，服务端发送初始序列号给客户端时，依然也要得到客户端回答响应，这样两次交互，才能保证双方初始序列号被可靠的同步。**而第二步和第三步可以优化成一步**，就成了三次握手。
+2.同步双方初始序列号。客户端的syn报文需要服务端回一个ack应答报文，服务端发送初始序列号给客户端时，依然也要得到客户端回答响应，这样两次交互，才能保证双方初始序列号被可靠的同步。**而第二步和第三步可以优化成一步**，就成了三次握手。
 避免资源浪费。如果只有两次握手，如果客户端syn报文在网络中阻塞，客户端没有收到ack报文，他就会重复发送syn，由于没有第三次握手，服务端不清楚客户端是否收到了自己回复的ack报文，所以服务端每收到一个syn只能先主动建立一个连接。
 
 三次握手状态变化：
@@ -2681,21 +2729,21 @@ epoll wait等待事件发生。
 
 服务端主动关闭连接：如果服务端频繁主动关闭连接，会导致time_wait连接增加。 -->
 <!-- 服务端端口被大量TIME_WAIT状态连接占用。 -->
-HTTP没有使用长连接。
+1.HTTP没有使用长连接。
 
-HTTP长连接超时。
+2.HTTP长连接超时。
 
-HTTP长连接请求数量达上限。
+3.HTTP长连接请求数量达上限。
 
-TCP参数配置不当。tcp_tw_reuse参数没有正确配置，导致TIME_WAIT状态的连接无法被重用。
+4.TCP参数配置不当。tcp_tw_reuse参数没有正确配置，导致TIME_WAIT状态的连接无法被重用。
 
 
 
-解决：修改tcp_tw_reuse参数。调整tcp_max_tw_buckets限制TIME_WAIT连接数量。
+解决：1.修改tcp_tw_reuse参数。调整tcp_max_tw_buckets限制TIME_WAIT连接数量。
 
-用长连接代替短连接。
+2.用长连接代替短连接。
 
-在应用层实现连接池。
+3.在应用层实现连接池。
 
 注：TCP里面是先close_wait再time_wait。time_wait发生在第4次挥手。
 
@@ -2995,8 +3043,19 @@ bean创建方式：
 
 3.Java配置类。在Configuration类中，通过bean注解显示定义bean。
 
-# IOC的优点，为什么不直接new，IOC的应用场景有哪些？（美团）
-IOC的好处是增强代码可维护性。如果在代码里new对象，那这个类和他依赖的对象绑定，一旦要更换依赖，就得改大量代码。但用IOC后，可以通过配置文件管理依赖关系。
+# IOC的优点，为什么不直接new，IOC的具体应用场景有哪些？（美团）
+IOC将对象的依赖关系交给容器管理。
+
+优点：1.降低耦合度，各个组件独立。2.可测试，通过依赖注入，测试时替换实际依赖为mock对象或stub。3.灵活性，用配置文件或注解管理对象依赖关系。
+
+为什么：在代码中硬编码，如果依赖发生变化，要大量修改代码。
+
+具体应用：首先就是依赖管理@Autowired注解自动注入依赖。
+
+然后是单元测试，使用Mockito模拟数据库。
+
+以及模块化开发，比如支付模块支持支付宝微信，定义支付接口，通过条件化bean选择实现。
+<!-- IOC的好处是增强代码可维护性。如果在代码里new对象，那这个类和他依赖的对象绑定，一旦要更换依赖，就得改大量代码。但用IOC后，可以通过配置文件管理依赖关系。
 
 不用new是因为他不符合开闭原则，应该只对拓展开发，对修改关闭。
 
@@ -3004,7 +3063,7 @@ IOC的好处是增强代码可维护性。如果在代码里new对象，那这�
 
 然后是单元测试，使用Mockito模拟数据库。
 
-以及模块化开发，比如支付模块支持支付宝微信，定义支付接口，通过条件化bean选择实现。
+以及模块化开发，比如支付模块支持支付宝微信，定义支付接口，通过条件化bean选择实现。 -->
 
 # 三级缓存怎么解决循环依赖？（网易，58同城，字节）
 
@@ -3012,27 +3071,27 @@ IOC的好处是增强代码可维护性。如果在代码里new对象，那这�
 
 三级缓存是spring框架解决循环依赖的机制。一级缓存singletonobjects存放完全初始化好的单例bean。二级缓存earlysingletonobjects存放早期暴露的bean，也就是还未完全初始化的bean。三级缓存singletonFactories存放bean工厂。
 
-解决循环依赖的过程。创建beanA，尝试从**一级缓存**中获取beanA，没有则创建，将beanA放入**三级缓存**，并暴露引用。
+解决循环依赖的过程。创建beanA，尝试从**一级缓存**中获取beanA，没有因此创建，将beanA放入**三级缓存**，并暴露引用。
 
-注入依赖，创建beanA过程中，需要注入beanB，这时尝试从一级缓存获取beanB，没有则创建。
+注入依赖，创建beanA过程中，需要注入beanB，这时尝试从一级缓存获取beanB，没有因此创建。
 
 创建beanB。创建beanB过程中，需要注入beanA，从**三级缓存**中获取beanA早期引用，并放入**二级缓存**。
 
 完成beanB初始化，beanA继续初始化。在SpringBoot 2.6版本解决了循环依赖问题。
 
-# 为什么要有第三级缓存？直接两个不行吗？（快手，网易）
+# 为什么解决循环依赖要有第三级缓存？直接两个不行吗？（快手，网易）
 如果只是解决循环依赖问题可以只用两个，第三个是为了延迟代理的创建，不打破bean的生命周期。
 
-# 如果构造函数内存在循环依赖还能解决吗？（shopee）
+# 如果构造函数内存在循环依赖还能解决循环依赖吗？（shopee）
 Bean创建的三步：实例化new，属性注入set，初始化。
 
-构造器注入，比如A(B b)，那表明new A的时候，就需要得到B。因此如果A B全是构造器注入，那Spring就不能处理循环依赖。构造器注入
+构造器注入，比如A(B b)，那表明new A的时候，就需要得到B。因此如果A B全是构造器注入，那Spring就不能处理循环依赖。
 
-而一个set注入，一个构造器注入，不一定成功。
+而一个set注入，一个构造器注入，看情况。
 
-A set注入B，B构造器注入A，成功。
+A set注入B，B构造器注入A，成功，因为B注入A时A已经实例化。
 
-A构造器注入B，Bset注入A，失败。Spring是按照字母序创建Bean的，A永远在B前面。
+A构造器注入B，Bset注入A，失败，因为A构造器未完成（A还没实例化）。Spring是按照字母序创建Bean的，A永远在B前面。
 
 # spring和springboot启动方式的区别（小红书）
 spring需要配置大量xml或java配置，springboot采用约定优于配置原则，提供自动配置功能。
@@ -3059,7 +3118,7 @@ springboot提供了内置servlet容器，研发只要运行一个主类包含spr
 
 Spring Boot 的核心容器是基于 Spring 框架的，而 Spring 框架本身是支持泛型的。因此，在 Spring Boot 中，无论是 key 还是 value，都可以使用泛型。
 
-可以使用泛型来定义 bean 的类型，在依赖注入时，Spring 会根据泛型类型自动匹配并注入相应的 bean。
+可以使用泛型来定义 bean 的类型，在依赖注入时，Spring 会根据泛型类型自动匹配并注入相应的 bean。但由于Java类型擦除，复杂场景可能要Qualifier注解保证注入正确。
 
 参考：https://blog.csdn.net/qq_34598667/article/details/83245753
 
@@ -3082,18 +3141,27 @@ Spring Boot 的核心容器是基于 Spring 框架的，而 Spring 框架本身�
 
 统一异常处理：避免在Controller重复编写异常处理代码。
 
-ControllerAdvice注解标记一个类为全局异常处理器。
+1.ControllerAdvice注解标记一个类为全局异常处理器。ExceptionHandler注解指定处理特定异常的方法。
 
-ExceptionHandler注解指定处理特定异常的方法。
+2.继承ResponseEntityExceptionHandler重写异常处理方法。
 
 # spring怎么知道所有bean创建完的？（快手）
-spring通过beanfactoryPostProcessor和beanPostProcessor接口处理bean的声明周期。
+依赖于ApplicationContext的刷新过程，Spring执行refresh方法的步骤如下：
+
+1.加载bean定义：通过注解和配置文件，把bean注册到beanFactory中。
+
+2.实例化非懒加载的单例bean：调用finishBeanFactoryInitialization方法，该方法调用beanFactory的preInstantiateSingletons。该方法遍历所有非懒加载单例bean，创建这些实例。
+
+3.执行SmartInitializingSingleton接口回调。如果某个bean实现了这个接口，它的afterSingletonInstantiated方法会在bean创建完成后调用。
+
+4.发布ContextRefreshEvent事件。调用finishRefresh方法，发布ContextRefreshEvent事件，通过这个事件，应用程序可以知道Spring容器已经初始化完毕。
+<!-- spring通过beanfactoryPostProcessor和beanPostProcessor接口处理bean的声明周期。
 
 beanFactoryPostProcessor在bean定义加载后，实例化之前执行。
 
 beanPostProcessor在bean实例化后，初始化前，初始化后执行。
 
-applicationContext提供了事件机制，通过contextRefreshEvent可以监听整个应用上下文刷新完成的事件。所有bean创建并初始化完成后，contextRefreshEvent会被触发。
+applicationContext提供了事件机制，通过contextRefreshEvent可以监听整个应用上下文刷新完成的事件。所有bean创建并初始化完成后，contextRefreshEvent会被触发。 -->
 
 <!-- ```java
 import org.springframework.context.ApplicationListener;
@@ -3111,33 +3179,36 @@ public class MyContextRefreshedListener implements ApplicationListener<ContextRe
 ``` -->
 
 # beanFactory和factoryBean的区别（阿里）
-beanFactory用于简单的依赖注场景，spring容器会自动管理bean的生命周期和依赖关系。
+BeanFactory 是 Spring IoC 容器的最底层抽象接口，负责管理、实例化和维护所有 bean 的生命周期以及处理依赖注入等核心功能。
 
-factoryBean适用于需要复杂初始化逻辑的场景，比如创建代理对象，连接池对象等。
+FactoryBean 是一个特殊的接口，允许你在 Spring 容器中以工厂的方式创建复杂的 bean 对象。通过实现 FactoryBean 接口，你可以自定义对象的创建过程，从而封装实例化逻辑。
+<!-- beanFactory用于简单的依赖注场景，spring容器会自动管理bean的生命周期和依赖关系。
+
+factoryBean适用于需要复杂初始化逻辑的场景，比如创建代理对象，连接池对象等。 -->
 
 # Spring框架用了哪些设计模式？（科大考过，58同城）
 
 工厂设计模式（通过 BeanFactory 和 ApplicationContext 创建 bean），
 
-代理设计模式（用于 Spring AOP 的实现），
+代理设计模式（用于 Spring AOP 的实现，通过动态代理实现横切关注点），
 
 单例设计模式（默认的 Bean 作用域），
 
-模板方法模式（如 JdbcTemplate 和 HibernateTemplate），
+模板方法模式（如 JdbcTemplate 和 HibernateTemplate，封装数据库操作固定流程），
 
 包装器设计模式（用于动态数据源切换），
 
-观察者模式（Spring 事件驱动模型）和
+观察者模式（Spring 事件驱动机制，ApplicationEvent和ApplicationListener，注册监听器），
 
-适配器模式（用于 Spring AOP 和适配 Controller）。
+适配器模式（Spring MVC中，HandlerAdapter使得不同控制器在同一框架下处理请求）。
 
 # 介绍一下SpringBootApplication注解。（浪潮，滴滴考过，哈啰）
 
-它封装了 @Configuration、@EnableAutoConfiguration 和 @ComponentScan 三个关键注解，大大简化了 Spring 应用的初始配置。
+它封装了 @SpringBootConfiguration、@EnableAutoConfiguration 和 @ComponentScan 三个关键注解，大大简化了 Spring 应用的初始配置。
 
-@Configuration **标识**一个类可以使用 **Spring IoC 容器**作为 bean 定义的源。
+@SpringBootConfiguration是Configuration注解的拓展，标识当前类是Spring配置类， **标识**一个类可以使用 **Spring IoC 容器**作为 bean 定义的源。
 
-@EnableAutoConfiguration 告诉 Spring Boot 根据添加的 jar 依赖**自动配置你的 Spring 应用，自动装配**。
+@EnableAutoConfiguration 告诉 Spring Boot 根据添加的 jar 依赖猜测需要的配置，**自动配置你的 Spring 应用，自动装配**。
 
 最后，@ComponentScan 使 Spring 自动扫描你的项目中的所有组件（如 @Service, @Controller 等），默认情况下扫描与配置类相同的包和子包。
 
@@ -3168,16 +3239,23 @@ factoryBean适用于需要复杂初始化逻辑的场景，比如创建代理对
 # Spring事务什么时候失效？事务失效？（百度，得物多次考，哈啰，网易）
 非public方法：Spring事务注解默认作用域public方法。
 
-内部调用：一个类内部，一个方法调用了另一个带有Transactional注解的方法，事务会失效，因为事务通过代理模式实现，内部调用不会经过代理对象。
+内部调用：一个类内部，一个方法调用了另一个带有Transactional注解的方法，事务会失效，因为事务通过代理模式实现，内部调用不会经过代理对象。解决：将需要事务控制的方法拆分到外部bean中。
 
-未抛出异常：Spring事务默认遇到runtimeException或error才会回滚，如果方法捕获了异常但没有抛出，事务不会回滚。
+未抛出异常：Spring事务默认遇到runtimeException或error才会回滚，如果方法捕获了异常但没有抛出，事务不会回滚。解决：对于检查型异常，明确在transactional注解指定rollbackFor。
 
 事务传播：如果设置了不合适的事务传播行为，如NOT_SUPPORTED会导致事务失效。
 
 # Spring事务的原理是什么？（得物，58同城）
-Spring事务是基于AOP面向切面编程和事务管理器的。
+基于AOP代理模式实现的。
 
-事务代理：Spring通过AOP创建事务代理，将事务管理代码插入到目标方法前后。当调用被transactional注解标记的方法时，Spring会自动创建一个代理对象，他会在方法执行前开启事务，方法执行后提交事务，如果方法抛出异常则回滚事务。
+AOP代理与事务切面：Spring在启用事务管理后，会为目标对象创建代理。
+
+事务属性解析：当一个被事务切面拦截的方法被调用时，代理通过TrasactionAttributeSource解析该方法上的事务属性，如传播行为、隔离级别。
+
+事务拦截器：解析完事务后，TrasactionInterceptor会根据这些属性调用具体的事务管理器（实现了PlatformTrasactionManager接口，如DataSourceTrasactionManager），在调用方法前开启事务。
+<!-- Spring事务是基于AOP面向切面编程和事务管理器的。
+
+事务代理：Spring通过AOP创建事务代理，将事务管理代码插入到目标方法前后。当调用被transactional注解标记的方法时，Spring会自动创建一个代理对象，他会在方法执行前开启事务，方法执行后提交事务，如果方法抛出异常则回滚事务。 -->
 
 参考：https://juejin.cn/post/6844903608224333838#heading-0
 
@@ -3193,15 +3271,19 @@ springcloud是基于springboot的微服务框架，他提供了一系列工具�
 
 # Component和Bean的区别是什么？（百度）
 
-都用于将对象注册到Spring容器中，但@Component用于**自动扫描**类并注册为bean，而@Bean则用在显式定义在**配置类**中的**方法**，用于生成具体的bean实例。
+都用于将对象注册到Spring容器中，但@Component用于**自动扫描**类并注册为bean，而@Bean则用在显式定义在**配置类**中的**方法**，用于生成具体的bean实例，可以用于无法修改源码的类如第三方库。
 
 参考：https://blog.csdn.net/w605283073/article/details/89221522
 
 # SpringBoot的自动配置如何实现的？什么是SpringBoot自动装配？（腾讯，恒生）
+原理：触发点：当在SpringBoot应用中用SpringBootApplication（包含了EnableAutoConfiguration注解）时，SpringBoot会自动启动自动配置机制。加载配置类：SpringBoot通过Spring Factories Loader加载meta inf spring.factories文件中定义的所有自动配置类。这些类含大量配置逻辑，用于初始化和注册应用所需的各种bean。
 
-自动装配就是通过注解或一些简单的配置就能在SpringBoot的帮助下实现某块功能。
+条件装配：自动配置用了Conditional注解，如ConditionalOnClass只有特定类在类路径存在才生效。
 
-通过 @EnableAutoConfiguration 注解实现，引入starter组件，SpringBoot基于约定去starter组件的路径下，meta inf，spring，factories找配置类，SpringBoot使用importselector导入这些配置类，并根据@conditional注解动态加载配置类里的bean到容器。
+
+<!-- 自动装配就是通过注解或一些简单的配置就能在SpringBoot的帮助下实现某块功能。
+
+通过 @EnableAutoConfiguration 注解实现，引入starter组件，SpringBoot基于约定去starter组件的路径下，meta inf，spring，factories找配置类，SpringBoot使用importselector导入这些配置类，并根据@conditional注解动态加载配置类里的bean到容器。 -->
 
 参考：https://juejin.cn/post/7046554366068654094，https://juejin.cn/post/7162568709955911717
 
@@ -3241,7 +3323,7 @@ CP（一致性，分区容错性）：Zookeeper，ETCD，consul，HBASE。
 
 # AutoWired和Resource的区别？（滴滴）
 
-@Autowired 是Spring提供的注解，主要通过类型来自动注入依赖，而在存在多个实现时可配合 @Qualifier 明确指定注入的bean；@Resource 是JDK的注解，它默认按名称注入，也可以指定类型来实现注入。
+@Autowired 是Spring提供的注解，主要通过类型来自动注入依赖，而在存在多个实现时可配合 @Qualifier 明确指定注入的bean；@Resource 是JSR规范的注解，符合Java EE标准，它默认按名称注入，也可以指定类型来实现注入。
 
 参考：https://www.zhihu.com/question/39356740，https://blog.csdn.net/Weixiaohuai/article/details/120853683
 
