@@ -33,6 +33,7 @@ sync map：他是线程安全的，但不保证类型安全。
 用接口调用方法时，go通过itab fun中的方法表找到具体实现。
 
 # go语言中Channel底层的实现（腾讯）
+# channel 是怎么保证线程安全？
 底层数据结构：hchan结构体，包含互斥锁、缓冲区（环形队列）、队列信息（包含sendq和recvq发送接收等待队列，存储阻塞的goroutine，通过sudog封装）。
 
 发送和接收流程：1.加锁。2.直接传递：如recvq有等待的接收者，直接拷贝给他并唤醒它。3.缓冲区操作：发送如缓冲区未满就写入。4.阻塞：缓冲区满，将当前goroutine打包为sudug加入队列。
@@ -401,3 +402,79 @@ miss计数：当只读map没找到去脏map查找次数达到一定阈值，将�
 
 
 TODO ： https://github.com/xiaobaiTech/golangFamily
+
+# golang切片可以作为MAP的KEY吗（腾讯）
+切片不能作为map的key。因为map的key必须是可比较的，切片不可比较。
+
+设计考虑。允许比较切片内容要遍历整个数组，性能上可能不理想。
+
+# golang底层有没有自动回收对象的机制？（腾讯）
+垃圾回收器。golang的gc采用并发标记-清除算法。
+
+三色标记法。
+
+写屏障。
+
+# golang二维的map按行和按列哪个快？（腾讯）
+按行更快。
+
+减少查找开销。按行读取先遍历外层map，再遍历内层map；按列读取，则要针对每一列遍历外层key，然后再从内层map找到元素。
+
+局部性。按行读取可利用map的数据局部性，减少缓存不命中。
+
+# golang Context放map有什么不好的？（腾讯）
+Context设计初衷是传递取消信号、截止时间和少量只读的请求级别数据。
+
+并发问题。map本身不是并发安全的，把map放到Context中，在多个Goroutine读写，会引发数据竞争。
+
+# C++实现golang类似的协程怎么做？（腾讯）
+用三方库实现栈式协程。boost coroutine，手动切换协程。
+
+用c++20内置协程。c++20引入co_wait、co_yield和co_return，可定义协程函数。c++20的协程不保存完整调用栈，调度要自己实现。
+
+# 如果在匿名函数内panic了，在匿名函数外的defer是否会触发panic-recover？反之在匿名函数外触发panic，是否会触发匿名函数内的panic-recover？（字节）
+panic发生在匿名函数内。能捕获panic，panic沿着调用栈往上传递。
+
+panic发生在匿名函数外。不能捕获panic，因为他的函数调用栈与panic无关。
+
+# golang切片底层实现？（字节）
+切片底层就是一个结构体。含指向底层数组的指针、切片长度和切片容量。
+
+底层数组和切片关系。1.共享底层数组。当对切片进行切片操作时，新切片仍指向原底层数组。2.动态扩容。用append添加元素时，若切片容量不足，go会自动分配，并复制。
+
+# defer的底层原理？（字节）
+编译器转换。编译器将defer转化为对一个特殊数据结构的调用。
+
+defer栈的实现。1.每遇到defer时，将调用信息如函数指针和参数值压入栈中，函数返回时，按照先进后出调用这些延迟函数。2.defer中函数的参数在被执行时就已经求值。
+
+调度。函数即将退出时，go遍历defer栈，逐个调用记录下来的函数。
+
+# 空切片和nil切片的区别（百度）
+空切片底层指针不是nil，长度和容量为0。
+
+nil切片内部指针为nil，长度和容量为0。
+
+# golang map的底层原理？（字节）
+数据结构。1.hmap结构体。含count、flag、B字段，flag控制map的状态，B代表桶数量，以及指向桶数组的指针。2.桶结构体。bucket维护tophash数组，存放每个key哈希值高位部分，快速排除不匹配的key。3.溢出链表。一个bucket存满，为该bucket分配溢出bucket，通过链表连接。
+
+查找过程。map用哈希函数对key计算，得到哈希值，根据哈希值获取索引。
+
+扩容渐进rehash。map中数量超过负载因子时触发扩容。扩容过程在后续map操作中将旧bucket数据迁移到新bucket中。
+
+# golang sync map底层原理？（字节） 
+数据结构。1.read读映射。用atomic Value包装的只读map。2.dirty脏映射。对map写入的数据存入脏映射，会加锁。当只读map找不到key时，会去脏map找，找到则复制。
+
+写操作。1.store。如key存在于读映射，直接更新，否则加锁，写脏映射。如果是首次写，将读映射标记为amended，不完整。2.delete。删除将key设为nil。
+
+# golang map加锁和sync.map的差别（字节）
+sync map更适合大量读操作且key基本稳定，写操作较少或新写入key频率低。
+
+map+rwmutex适合写操作多，频繁新增key。
+
+# golang怎么查找性能瓶颈？（字节）
+用pprof工具。1.go内置net http pprof和runtime pprof。2.用go tool pprof生成火焰图，看调用栈占用时间较多的部分。
+
+cpu profiling。在main函数开始调用pprof startcpuProfile，程序结束时调用pprof stopcpuProfile。
+
+内存profiling。用pprof lookup("heap")采集堆内存。
+
