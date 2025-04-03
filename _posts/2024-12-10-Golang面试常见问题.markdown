@@ -478,3 +478,8 @@ cpu profiling。在main函数开始调用pprof startcpuProfile，程序结束时
 
 内存profiling。用pprof lookup("heap")采集堆内存。
 
+# golang中无阻塞channel缓冲满了，继续写入会怎么样（文远知行）
+写入会阻塞当前Goroutine。
+
+# go中如何将string转为切片[]byte，不申请额外空间（得物）
+直接用内置转换会产生新的内存拷贝。如要在O 1空间复杂度实现可借助reflect包和unsafe包。用reflect StringHeader和reflect SliceHeader，将字符串头部结构体数据指针赋值给切片头部结构体。

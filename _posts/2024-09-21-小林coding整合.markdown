@@ -80,3 +80,7 @@ LOCK_MODE: X,GAP
 LOCK_STATUS: GRANTED
 LOCK_DATA: 10
 (5,10)
+
+# mysql默认自动提交
+show variables like 'autocommit';
+set autocommit = 0;
