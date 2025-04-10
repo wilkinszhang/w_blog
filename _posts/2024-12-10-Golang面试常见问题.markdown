@@ -23,7 +23,7 @@ map是非线程安全的。
 
 sync map：他是线程安全的，但不保证类型安全。
 
-# go语言interface底层如何实现（腾讯）
+# go语言interface底层如何实现（腾讯）page 115
 通过eface和和iface表示空接口和非空接口。
 
 空接口的底层结构：_type指向动态类型的元数据，data指向实际的指针。
@@ -32,14 +32,14 @@ sync map：他是线程安全的，但不保证类型安全。
 
 用接口调用方法时，go通过itab fun中的方法表找到具体实现。
 
-# go语言中Channel底层的实现（Channel底层原理）（腾讯）
+# go语言中Channel底层的实现（Channel底层原理）（腾讯）page 116
 # channel 是怎么保证线程安全？
 底层数据结构：hchan结构体，包含互斥锁、缓冲区（环形队列）、队列信息（包含sendq和recvq发送接收等待队列，存储阻塞的goroutine，通过sudog封装）。
 
 发送和接收流程：1.加锁。2.直接传递：如recvq有等待的接收者，直接拷贝给他并唤醒它。3.缓冲区操作：发送如缓冲区未满就写入。4.阻塞：缓冲区满，将当前goroutine打包为sudug加入队列。
 
 
-# Go语言channel关闭了，读写这个channel会发生什么（腾讯）
+# Go语言channel关闭了，读写这个channel会发生什么（腾讯）page 115
 向已关闭的Channel写数据：触发panic，Channel有缓冲以及没有缓冲都会panic。
 
 从已关闭的Channel读数据：如Channel有缓冲数据，正常读取。如没有缓冲数据，返回Channel类型零值，且第二个返回参数ok为false。
@@ -52,14 +52,14 @@ sync map：他是线程安全的，但不保证类型安全。
 
 同步：用sync waitGroup等待所有任务完成。
 
-# go语言协程是对称的还是不对称的？（腾讯）
+# go语言协程是对称的还是不对称的？（腾讯）page 115
 go语言协程是对称的。
 
 调度模型对称性：调度器采用协作式抢占调度，所有Goroutine在调度器中是平等的。
 
 协程行为的对称：Goroutine之间不需要生成器如python的yield主动交出控制权。
 
-# go语言Context你用过吗（腾讯）
+# go语言Context你用过吗（腾讯）page 115
 Context是处理请求生命周期和跨api传递数据的工具。
 
 实际使用场景：1.聚合多个服务结果：调用多个外部服务时，某个服务响应慢导致整体延迟。用WithTimeout控制统一的超时时间。2.数据库查询取消：用户取消请求后，db操作仍在进行。可以检查Context canceled回收资源。3.跨服务传递元数据：微服务调用链中要传递trace id用于日志聚合，用withValue。
@@ -69,7 +69,7 @@ Context是处理请求生命周期和跨api传递数据的工具。
 
 内存对齐：预估容量会按照元素类型调整。 -->
 
-# go语言sync包mutex实现（字节）
+# go语言sync包mutex实现（字节）page 115
 结构体与状态管理：Mutex内部通过state字段管理锁的状态，二进制位有不同的信息：第0位表示锁是否被持有，第1位是否处于饥饿模式，剩余位表示等待锁的Goroutine数量。
 
 两种模式：正常模式：新请求的Goroutine通过自旋获取锁，自旋失败进入等待队列。饥饿模式：当某个Goroutine等待超过1毫秒，触发，锁直接交给等待队列队首Goroutine，新到达Goroutine直接进入队尾。
@@ -88,24 +88,27 @@ Context是处理请求生命周期和跨api传递数据的工具。
 
 传递方式：数组值传递，切片是引用类型，包含指针、长度len和容量cap。
 
-# go语言结构体作为参数传递时是传值还是传指针（字节）
+# go语言结构体作为参数传递时是传值还是传指针（字节）page 114
 结构体是值传递。
 
-# go语言如何对map排序（字节）
+# go语言如何对map排序（字节）page 114
 map底层无序。排序可以用切片和sort实现。
 
 key排序：1.提取map所有key存入切片。 2.对key的切片排序。 3.遍历排序后的key切片，顺序访问map的值。
 
 按值排序：1.定义结构体切片，存key和值。 2.填充切片。 3.用sort Slice自定义排序规则。
 
-# go语言垃圾回收机制（字节）
+# go语言垃圾回收机制（字节）page 114
 机制：三色标记清除法。标记阶段，将对象分为白，灰黑，从根对象（栈、全局变量）出发，递归标记可达对象。清除阶段，回收未标记的白色对象。
 
 工作流程：1.stw初始标记，扫描根对象。 2.并发标记，用写屏障记录并发修改。 3.stw重新标记。 4.并发清除。
 
 触发条件：默认当堆内存大小达到上次gc存活对象的两倍（由gogc环境变量调整）。
 
-# go语言中并发utils了解多少（字节）
+# 讲讲golang 写屏障解决什么问题？没有写屏障会导致什么问题？（B站）page 2
+写屏障维护三色标记法不变性。没有写屏障有漏标问题，并发标记中如果程序对对象指针修改，但没有对应的写屏障记录，那么gc会漏掉修改后可达的对象。
+
+# go语言中并发utils了解多少（字节）page 113
 Goroutine和Channel：Goroutine是轻量级协程，Channel用于协程间通信。
 
 sync包：1.mutex rwmutex互斥锁和读写锁。2.waitgroup：等一组Goroutine完成。once：保证代码执行一次。
@@ -196,7 +199,7 @@ func main() {
 
 ```
 
-# go语言的goroutine是什么（百度）
+# go语言的goroutine是什么（百度）page 113
 Goroutine是go轻量级线程。Goroutine的初始栈空间非常小，且由go运行时调度器管理。
 
 # go语言实现发布订阅模型（百度）
@@ -283,12 +286,12 @@ func main() {
 }
 ```
 
-# go语言 GMP中M对应的内核的什么，G除了系统调用会阻塞还有什么会阻塞（百度）
+# go语言 GMP中M对应的内核的什么，G除了系统调用会阻塞还有什么会阻塞（百度）page 113
 M对应操作系统线程。G是轻量级协程，由go运行时调度在多个M上执行，P是调度器。每个M绑定一个P来执行G，但一个M可以与多个P交替工作。
 
 阻塞原因：1.等待其他Goroutine，如通过Channel。2.锁竞争。3.调度器阻塞，G没有可用的P。
 
-# go语言 P怎么调度G的（百度）
+# go语言 P怎么调度G的（百度）page 113
 ![](https://github.com/wilkinszhang/picx-images-hosting/raw/master/gmp_relation.9rjjrr0tol.webp)
 每个P有一个本地队列，存储要执行的Goroutine。
 
@@ -298,7 +301,7 @@ M对应操作系统线程。G是轻量级协程，由go运行时调度在多个M
 
 执行完一个G后，M继续从P队列中取下一个G。
 
-# 讲讲go func执行的过程？
+# 讲讲go func执行的过程？page 14
 创建一个Goroutine。
 
 队列存储。有两个存储G的队列，一个是P的本地队列，一个是全局G队列，新创建的G会首先保存在P的本地队列中，如果本地队列满，那么G会存入全局队列。
@@ -307,26 +310,26 @@ G执行调度。G需要M（操作系统线程）执行。每个M必须绑定一�
 
 M调度G执行。是循环机制，M会不断调度G，直到所有的G都执行。如果G发生系统调用，M也会阻塞，剩余的G会启动一个新的M处理。
 
-# 讲讲go park和go ready的底层原理。
+# 讲讲go park和go ready的底层原理。page 14
 go运行时调度器是m比n调度模型，m是操作系统线程，n是Goroutine。调度器中go park用于挂起Goroutine，goready用于唤醒Goroutine，他们是调度原语。
 
 gopark。Goroutine因io或Channel、锁无法运行，会调用gopark将Goroutine状态从Runnable变为waiting或blocked。调度器将g从p本地队列移除。
 
 goready。goready将唤醒的Goroutine加入对应的p的本地队列，如满则放入全局队列。
 
-# 讲讲go协程的栈内存管理。
+# 讲讲go协程的栈内存管理。page 14
 小栈起步。每个Goroutine启动分配很小空间如2K字节。
 
 动态栈扩展。当函数调用层次加深，运行时检测到进行栈拓展，运行时分配一块更大的内存区域，将现有栈复制，并更新指针。
 
-# 讲讲go语言sync pool底层原理。
+# 讲讲go语言sync pool底层原理。page 14
 按P本地缓存。sync pool为每个P分配局部缓存，每个P内部数据操作不用加锁，因为一个P同一时刻只会运行一个G。缓存分为private和shared部分。private没有加锁，shared是CAS队列，支持其他P窃取。
 
 对象读取get过程。先从private读取，再从shared读取，如果当前P内部没有，再从其他P的shared队列窃取，用CAS保证并发安全。最后如果没有，且定义了new函数，则创建新对象。
 
 对象写put过程。先放private，再放shared队列。
 
-# 讲讲go语言常用的包。
+# 讲讲go语言常用的包。page 1
 fmt包。格式化输入输出，打印日志。
 
 errors包。构造和处理错误信息。
@@ -343,40 +346,40 @@ sync包。并发原语。
 
 context包。在api调用传递截止时间、取消信号。
 
-# 讲讲go语言特权Goroutine g0。
+# 讲讲go语言特权协程Goroutine g0。page 1
 g0是每个操作系统线程M持有的受保护Goroutine。
 
 运行时调度器。g0执行上下文切换、栈管理。
 
 g0的栈空间不会进行动态栈扩展。
 
-# go语言结构体可以比较吗？
+# go语言结构体可以比较吗？page 14
 结构体可以比较，但前提是所有字段是可比较的，如果结构体有切片，map，函数，就不能比较。
 
-# go语言 defer怎么用的（百度）
+# go语言 defer怎么用的（百度）page 113
 defer用于延迟函数的执行，用于关闭文件，解锁互斥锁。多个defer按照后进先出顺序执行。defer在函数返回之前执行，但是在return语句执行之后。defer函数参数是在程序走到defer语句时已经确定，而不是在函数返回之前那时候才确定。
 
-# go语言 cap和len区别（百度）
+# go语言 cap和len区别（百度）page 112
 cap返回切片容量，len返回切片实际长度。
 
-# go语言能往已经closed的Channel写数据吗（百度）
+# go语言能往已经closed的Channel写数据吗（百度）page 112
 会导致panic。
 
-# 从已关闭的 Channel 读取数据会发生什么？为什么？（腾讯）
+# 从已关闭的 Channel 读取数据会发生什么？为什么？（腾讯）page 21
 不会panic，不会阻塞。1.如果Channel带缓冲且关闭前存入数据，那么会依次读取缓冲区数据。2.Channel为空，则返回该数据的零值，ok是false。
 
 因为这是支持优雅关闭机制，使得消费者在Channel关闭后退出循环。
 
-# go语言往关闭（closed）的Channel写入会发生什么？（go语言往关闭（closed）的有缓冲Channel写入会发生什么？）（go语言往关闭（closed）的无缓冲Channel写入会发生什么？）
+# go语言往关闭（closed）的Channel写入会发生什么？（go语言往关闭（closed）的有缓冲Channel写入会发生什么？）（go语言往关闭（closed）的无缓冲Channel写入会发生什么？）page15
 panic。
 
-# go语言往关闭的无缓冲Channel读取会发生什么？
+# go语言往关闭的无缓冲Channel读取会发生什么？page15
 不阻塞不panic，返回零值，ok为false。
 
-# go语言往关闭的有缓冲Channel读取会发生什么？
+# go语言往关闭的有缓冲Channel读取会发生什么？page15
 缓存有则读取，空则返回零值，ok为false。
 
-# go语言往满了的有缓冲Channel写入会发生什么？（go语言往空的有缓冲Channel读取会发生什么？）
+# go语言往满了的有缓冲Channel写入会发生什么？（go语言往空的有缓冲Channel读取会发生什么？）page15
 阻塞。
 
 # 如何确保 Channel 只会被关闭一次？（腾讯）
@@ -384,20 +387,20 @@ panic。
 
 用同步原语。用sync once保证关闭只执行一次。
 
-# go语言 ：=和=的区别（百度）
+# go语言 ：=和=的区别（百度）page 112
 ：=声明并初始化一个新变量，=将一个已声明的变量赋值一个新值。
 
-# go语言有几种锁，乐观锁怎么实现的（百度）
+# go语言有几种锁，乐观锁怎么实现的（百度）page 112
 互斥锁mutex，读写锁rwmutex，条件变量cond。
 
 乐观锁实现：读取当前值，计算新值，用cas更新，如atomic CompareAndSwap系列函数。
 
-# go语言 Channel有缓冲和无缓冲区别（百度）
+# go语言 Channel有缓冲和无缓冲区别（百度）page 112
 无缓冲：同步传递，他没有内部队列，发送和接收必须同时发生，当一个Goroutine向无缓冲Channel发送数据时，如没有其他Goroutine等待接收，发送会阻塞。
 
 有缓冲：内部有队列，只有缓冲区满发送才会阻塞。适用于生产者消费者模型。
 
-# go语言值传递和引用传递区别（腾讯云智）
+# go语言值传递和引用传递区别（腾讯云智）page 111
 所有参数都是值传递。数组也是值类型，直接传递会复制数组。
 
 可以用指针实现在函数中修改原变量。
@@ -448,12 +451,12 @@ func main() {
 <!-- # go语言 sema（滴滴） -->
 
 
-# go语言 waitgroup原理（滴滴）
+# go语言 waitgroup原理（滴滴）page 111
 waitgroup是同步原语，等待一组Goroutine完成。内部维护计数器，wg add(n)将计数器增加n，启动n个并发任务，每个Goroutine完成后，需调用wg done，将计数器减一。
 
 计数值的低32位是未完成任务数量，高32位是当前等待的Goroutine数量。
 
-# go语言 once原理（滴滴）
+# go语言 once原理（滴滴）page 111
 状态标记：once内部有状态标记done，记录是否执行过目标函数。还维护了互斥锁，保护状态。
 
 双重检查：1.第一次检查：调用方法时，先通过原子操作atomic loadUnit32检查done的值，不为0直接返回。2.获取互斥锁，再检查done的值。如为0，调用目标函数，用defer在目标函数执行完后，将done设为1。
@@ -464,7 +467,7 @@ waitgroup是同步原语，等待一组Goroutine完成。内部维护计数器�
 
 阻塞 ：Goroutine等待永远不会受到数据的Channel操作。比如我主Goroutine有个无缓冲Channel，子Goroutine发送数据，如果没有消费者，会一直阻塞，然后主Goroutine 用select超时返回，子Goroutine发生泄漏。
 
-# 对于go语言 sync.map底层如何实现并发安全？（百度）
+# 对于go语言 sync.map底层如何实现并发安全？（百度）page 111
 只读map：保存在原子变量中，不可变，可多个Goroutine共享。
 
 脏map：有互斥锁。如果一个键在只读map没找到，且map状态是已修改，则获取锁去脏map查找。
@@ -474,153 +477,208 @@ miss计数：当只读map没找到去脏map查找次数达到一定阈值，将�
 当有写操作发生时，如果当前的read视图正在被读取，则会创建一个新的写入视图，并在写入完成后更新read字段。
 读取操作则直接从read视图中获取数据，如果发现read视图已经被标记为过期，则会从最新的写入视图中重新加载数据。 -->
 
-# go语言map并发访问时panic如何实现的（小米）
+# go语言map并发访问时panic如何实现的（小米）page 111
 状态：map内部有状态，一个Goroutine开始写操作，会设置状态。在每次对map读写，运行时会检查这个状态，检测到并发访问，map调用runtime throw，触发panic。
 
 
 TODO ： https://github.com/xiaobaiTech/golangFamily
 
-# golang切片可以作为MAP的KEY吗（腾讯）
+# golang切片可以作为MAP的KEY吗（腾讯）page 57
 切片不能作为map的key。因为map的key必须是可比较的，切片不可比较。
 
 设计考虑。允许比较切片内容要遍历整个数组，性能上可能不理想。
 
-# golang底层有没有自动回收对象的机制？（腾讯）
+# golang底层有没有自动回收对象的机制？（腾讯）page 56
 垃圾回收器。golang的gc采用并发标记-清除算法。
 
 三色标记法。
 
 写屏障。
 
-# golang二维的map按行和按列哪个快？（腾讯）
+# golang二维的map按行和按列哪个快？（腾讯）page 55
 按行更快。
 
 减少查找开销。按行读取先遍历外层map，再遍历内层map；按列读取，则要针对每一列遍历外层key，然后再从内层map找到元素。
 
 局部性。按行读取可利用map的数据局部性，减少缓存不命中。
 
-# golang Context放map有什么不好的？（腾讯）
+# golang Context放map有什么不好的？（腾讯）page 55
 Context设计初衷是传递取消信号、截止时间和少量只读的请求级别数据。
 
 并发问题。map本身不是并发安全的，把map放到Context中，在多个Goroutine读写，会引发数据竞争。
 
-# C++实现golang类似的协程怎么做？（腾讯）
+# C++实现golang类似的协程怎么做？（腾讯）page 55
 用三方库实现栈式协程。boost coroutine，手动切换协程。
 
 用c++20内置协程。c++20引入co_wait、co_yield和co_return，可定义协程函数。c++20的协程不保存完整调用栈，调度要自己实现。
 
-# 如果在匿名函数内panic了，在匿名函数外的defer是否会触发panic-recover？反之在匿名函数外触发panic，是否会触发匿名函数内的panic-recover？（字节）
+# 如果在匿名函数内panic了，在匿名函数外的defer是否会触发panic-recover？反之在匿名函数外触发panic，是否会触发匿名函数内的panic-recover？（如果 panic 发生在匿名函数内部，外层函数中用 defer 调用 recover 能捕获该 panic 吗？）（如果 panic 发生在外层函数中，匿名函数内部的 defer recover 能捕获该 panic 吗？）（字节）page 55
 panic发生在匿名函数内。能捕获panic，panic沿着调用栈往上传递。
 
 panic发生在匿名函数外。不能捕获panic，因为他的函数调用栈与panic无关。
 
-# golang切片底层实现？（字节）
+# golang切片底层实现？（字节）page 54
 切片底层就是一个结构体。含指向底层数组的指针、切片长度和切片容量。
 
 底层数组和切片关系。1.共享底层数组。当对切片进行切片操作时，新切片仍指向原底层数组。2.动态扩容。用append添加元素时，若切片容量不足，go会自动分配，并复制。
 
-# defer的底层原理？（字节）
+# defer的底层原理？（字节）page 54
 编译器转换。编译器将defer转化为对一个特殊数据结构的调用。
 
 defer栈的实现。1.每遇到defer时，将调用信息如函数指针和参数值压入栈中，函数返回时，按照先进后出调用这些延迟函数。2.defer中函数的参数在被执行时就已经求值。
 
 调度。函数即将退出时，go遍历defer栈，逐个调用记录下来的函数。
 
-# 空切片和nil切片的区别（百度）
+# 空切片和nil切片的区别（百度）page 54
 空切片底层指针不是nil，长度和容量为0。
 
 nil切片内部指针为nil，长度和容量为0。
 
-# golang map的底层原理？（字节）
+# golang map的底层原理？（字节）page 54
 数据结构。1.hmap结构体。含count、flag、B字段，flag控制map的状态，B代表桶数量，以及指向桶数组的指针。2.桶结构体。bucket维护tophash数组，存放每个key哈希值高位部分，快速排除不匹配的key。3.溢出链表。一个bucket存满，为该bucket分配溢出bucket，通过链表连接。
 
 查找过程。map用哈希函数对key计算，得到哈希值，根据哈希值获取索引。
 
 扩容渐进rehash。map中数量超过负载因子时触发扩容。扩容过程在后续map操作中将旧bucket数据迁移到新bucket中。
 
-# golang sync map底层原理？（字节） 
+# golang sync map底层原理？（字节） page 54
 数据结构。1.read读映射。用atomic Value包装的只读map。2.dirty脏映射。对map写入的数据存入脏映射，会加锁。当只读map找不到key时，会去脏map找，找到则复制。
 
 写操作。1.store。如key存在于读映射，直接更新，否则加锁，写脏映射。如果是首次写，将读映射标记为amended，不完整。2.delete。删除将key设为nil。
 
-# golang map加锁和sync.map的差别（字节）
+# golang map加锁和sync.map的差别（字节）page 53
 sync map更适合大量读操作且key基本稳定，写操作较少或新写入key频率低。
 
 map+rwmutex适合写操作多，频繁新增key。
 
-# golang怎么查找性能瓶颈？（golang gc如何调优）（golang 垃圾回收怎么调优）（字节）
+# golang怎么查找性能瓶颈？（golang gc如何调优）（golang 垃圾回收怎么调优）（字节）page 53
 用pprof工具。1.go内置net http pprof和runtime pprof。2.用go tool pprof生成火焰图，看调用栈占用时间较多的部分。
 
 cpu profiling。在main函数开始调用pprof startcpuProfile，程序结束时调用pprof stopcpuProfile。
 
 内存profiling。用pprof lookup("heap")采集堆内存。
 
-# golang中无缓冲channel满了，继续写入会怎么样（文远知行）
+# golang中无缓冲channel满了，继续写入会怎么样（文远知行）page 43
 写入会阻塞当前Goroutine。
 
-# go中如何将string转为切片[]byte，不申请额外空间（得物）
+# go中如何将string转为切片[]byte，不申请额外空间（得物）page 43
 直接用内置转换会产生新的内存拷贝。如要在O 1空间复杂度实现可借助reflect包和unsafe包。用reflect StringHeader和reflect SliceHeader，将字符串头部结构体数据指针赋值给切片头部结构体。
 
-# golang string和[]byte区别？（golang string字符串和byte字节切片区别）（得物）
+# golang string和[]byte区别？（golang string字符串和byte字节切片区别）（得物）page 41
 string字符串是不可变字节序列，内部是一个结构体，有一个指针和一个长度值。默认utf8编码。
 
 字节切片可以修改。内部是一个结构体，有一个指针、长度和容量。
 
-# make和new的区别
+# 对于函数参数，struct结构体内有引用类型，想在函数内对引用类型做修改，可以修改吗？（结构体内的引用类型（如切片或 map）在函数内部修改会影响原始数据吗？）（B站）page 2
+如果是切片不可以修改，因为比如append方法往切片新增一个元素，这时append是返回一个新切片，函数内只是对局部变量赋值，不改变原始结构体。
+
+如果是map可以修改，比如用key修改值，会反映到原始map上。
+```go
+package main
+
+import "fmt"
+
+type MyStruct struct {
+	Slice []int
+}
+
+// modify1 仅修改切片内的元素
+func modify1(s MyStruct) {
+	// 修改底层数组中的第一个元素，此修改会反映到原始数据上
+	if len(s.Slice) > 0 {
+		s.Slice[0] = 100
+	}
+}
+
+// modify2 重新赋值切片字段
+func modify2(s MyStruct) {
+	// append操作可能返回一个新的切片，此时重新赋值只是修改了局部变量，不会影响调用者的结构体
+	s.Slice = append(s.Slice, 200)
+}
+
+func main() {
+	// 初始化结构体
+	orig := MyStruct{
+		Slice: []int{1, 2, 3},
+	}
+
+	// 调用修改切片内数据的函数
+	modify1(orig)
+	fmt.Println("调用 modify1 后的结果：", orig.Slice) // 输出结果：[100, 2, 3]
+
+	// 调用重新赋值切片的函数
+	modify2(orig)
+	fmt.Println("调用 modify2 后的结果：", orig.Slice) // 仍然输出：[100, 2, 3]，没有看到 append 的效果
+
+	// 如果想让 append 的操作生效，有两种方法：
+	// 1. 传入指针，这样可以直接修改结构体中的切片字段
+	modifyWithPtr(&orig)
+	fmt.Println("通过指针调用修改函数后的结果：", orig.Slice)
+}
+
+// 使用指针传递，允许修改结构体字段本身
+func modifyWithPtr(s *MyStruct) {
+	s.Slice = append(s.Slice, 300)
+}
+
+```
+
+
+# make和new的区别 page 40
 new用于内存分配，适用任何类型。为指定类型分配零值内存，返回该内存地址的指针。
 
 make专门用于切片、map、Channel的初始化。返回的是引用，不是指针。
 
-# golang切片是如何扩容的
+# golang切片是如何扩容的 page 40
 扩容触发。当append发现长度已达到容量上限时，调用growslice函数。在go 1.18前，如原容量小于1024，则翻倍扩容。在go 1.18之后，是256。如果切片大于这个数，以增长因子扩容。
 
 扩容策略。go 1.18之前，如果容量大于1024，则按1.25倍扩容。go 1.18之后，如容量大于256，用公式计算新容量，新容量增量是 (newcap + 3 * threshold) / 4。
 
-# golang如何想要按照特定顺序遍历map,怎么做
+# golang如何想要按照特定顺序遍历map,怎么做 page 40
 提取key。将map中所有key存到切片。
 
 对切片排序。
 
 遍历排序后的切片。
 
-# Golang 的错误处理和 Java 的异常处理对⽐
+# Golang 的错误处理和 Java 的异常处理对⽐ page 40
 golang将错误作为返回值检查，每个可能失败的函数调用后会返回一个error类型的值。而java采用异常机制，throw抛出异常，在try catch捕获异常。
 
-# 介绍⼀下golang的panic和recover
+# 介绍⼀下golang的panic和recover page 40
 panic和recover是处理异常的内置机制。
 
 panic的作用。1.中断程序执行。当程序遇到错误时如数组越界，调用panic中断，函数停止运行，逐层向上调用defer。2.	用于不可恢复的错误。golang用返回错误值处理预期内的错误。
 
 recover的作用。1.他是内置函数，只能在defer中用，捕获panic。
 
-# golang面向对象是怎么实现的？
+# golang面向对象是怎么实现的？page 39
 用结构体和接口实现。
 
 golang用结构体组合实现对象的组合。可以为结构体绑定方法对内部数据操作。用首字母大小写表示私有和公有。
 
-# 讲讲golang并发模型
+# 讲讲golang并发模型 page 39
 思想来源于CSP，提倡不用共享内存来通信，而用通信共享内存，用Goroutine和Channel实现。
 
 Goroutine调度基于gmp模型。g表示协程，m表示操作系统线程，p表示调度器上下文环境。
 
 Channel分为有缓冲和无缓冲，是在Goroutine间传递数据的工具。
 
-# 如何控制Goroutine生命周期？
+# 如何控制Goroutine生命周期？ page 39
 Context包。可以实现超时控制、取消、传递参数。
 
 Channel。可以定义退出Channel，在要停止Goroutine时，向Channel发送信号，在Goroutine内部，用select监听此Channel。
 
 waitgroup。等待一组Goroutine。
 
-# golang Mutex有几种模式？
+# golang Mutex有几种模式？page 39
 normal正常模式和starvation饥饿模式。
 
-# golang Mutex有⼏种状态？
+# golang Mutex有⼏种状态？page 39
 mutexLocked锁定。
 mutexWoken从正常模式被唤醒。
 mutexStarving饥饿状态。
 
-# Go什么时候发⽣阻塞？阻塞时调度器会怎么做。
+# Go什么时候发⽣阻塞？阻塞时调度器会怎么做。page 39
 分几种情况。
 
 用户态阻塞。如Channel、互斥锁。调度器将G从P的本地队列移除，并放入对应的等待队列，不阻塞M，M可运行其他G。
@@ -629,26 +687,26 @@ mutexStarving饥饿状态。
 
 阻塞系统调用。Goroutine调用了阻塞OS线程的系统调用，Goroutine进入Gsyscall状态，绑定的M也阻塞。调度器解除M和P的绑定。
 
-# Goroutine什么时候发生内存泄漏，如何避免。
+# Goroutine什么时候发生内存泄漏，如何避免。page 39
 在Go中内存泄露分为暂时性内存泄露和永久性内存泄露。
 暂时性内存泄露如获取⻓字符串中的⼀段导致⻓字符串未释放、获取⻓slice中的⼀段导致⻓slice未释放。
 
 可以通过复制截取数据避免。
 
-# 讲讲golang GMP模型原理。
+# 讲讲golang GMP模型原理。page 39
 当⼀个 Goroutine 被创建时，它会被放⼊⼀个 P 的本地队列。
 
 当 P 的本地队列空了，或者某个 Goroutine ⻓时间没有被调度执⾏时，P 会尝试从全局队列中获取 Goroutine。如果全局队列也为空，P 会从其他 P 的本地队列中偷取⼀些 Goroutines，以保证尽可能多地利⽤所有的处理器。
 
 M 的数量决定了同时并发执⾏的 Goroutine 数⽬。如果某个 M 阻塞（⽐如在系统调⽤中），它的⼯作会被其他 M 接管。
 
-# Go 中的内存逃逸现象是什么？
+# Go 中的内存逃逸现象是什么？page 39
 编译器在逃逸分析过程中发现某个本应分配在栈上的变量，因为其作用域或生命周期超出了当前函数的范围，被迫分配到堆上。
 
 返回局部变量地址：如果函数返回局部变量的指针，编译器会认为该变量的生命周期可能会超过函数调用，从而将它分配到堆上。
 
 当将局部变量通过 channel 或 goroutine 传递给其他部分，⽽这些部分可能在原始函数退出后访问这个变量时，也会导致内存逃逸。
 
-如果在函数内部使⽤ new 或 make 分配的变量，即使返回的是指针，但这个指针可能被外部持有，从⽽导致变量在堆上分配⽽不是在栈上分配。
+如果在函数内部使⽤ new 或 make 分配的变量，即使返回的是指针，但这个指针可能被外部持有，从⽽导致变量在堆上分配。
 
 如何优化。看编译器的逃逸分析报告，-gcflags="-m -l"
