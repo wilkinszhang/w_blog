@@ -62,7 +62,7 @@ CREATE TABLE Comments (
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
 ```
-**查询点赞最高的帖子**：
+ 查询点赞最高的帖子 ：
 ```sql
 SELECT p.post_id, p.content, COUNT(l.like_id) AS like_count
 FROM Posts p
@@ -71,7 +71,7 @@ GROUP BY p.post_id
 ORDER BY like_count DESC
 LIMIT 1;
 ```
-**查询发表评论最多的用户和他最新的一条评论**：
+ 查询发表评论最多的用户和他最新的一条评论 ：
 ```sql
 WITH CommentCount AS (
     SELECT c.user_id, COUNT(c.comment_id) AS comment_count
