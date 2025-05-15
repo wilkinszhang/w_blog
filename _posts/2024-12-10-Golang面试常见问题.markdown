@@ -759,5 +759,6 @@ M 的数量决定了同时并发执⾏的 Goroutine 数⽬。如果某个 M 阻�
 # 你怎么理解云原生的？（腾讯音乐）page 1
 云原生是用开源技术栈，在任意云环境如公有云私有云中，以微服务、容器化、动态编排方式构建部署和运行应用的模式，目标是提高资源利用率、可观测性和持续交付。典型实践有遵循twelve Factor原则，用k8s做容器编排、用CICD工具链如Jenkins X实现流水线全自动化，借助gitops、serverless解耦。
 
-
+# go协程的recover怎么写，具体用法（shopee）
+recover只有在同一个Goroutine且在defer函数内部才能捕获panic，在Goroutine内部直接写defer recover。
 

@@ -1,4 +1,4 @@
-# jdk中用到了哪些设计模式？（shopee）
+# jdk中用到了哪些设计模式？（shopee，得物）page 1
 适配器模式，如java，util，Arrays，aslist方法，将数组转化为list处理。
 装饰器模式，如java，io，bufferedinputstream，在调用read时，先从内部缓冲区读数据，如果缓冲区为空，再从被装饰的inputstream中读取数据填充缓冲区。
 代理模式，如java，lang，reflect，proxy，实际对象是实现某个接口的具体类，代理对象由proxy类动态生成，持有实际对象的引用，invocationhandler是一个接口，代理对象调用方法时，会将方法调用委托给invocationhandler的invoke方法。
