@@ -358,6 +358,9 @@ redolog的写入比向数据页写入快得多。因为redolog是顺序写，而
 ## 写入 redolog 后如何进行查询怎么查到变化的数据呢？（高德地图）
 查询语句select是结合MVCC在buffer pool脏页中查询的，如果未找到则去磁盘找。
 
+## 如果innodb一个有索引的列很大，不能全部存入内存中的缓冲区，如何通过索引进行查找？（蚂蚁）
+按需加载B+树页，从根节点开始，把查找路径上的几个页先加载进来。
+
 ## MySQL怎么实现数据恢复？（得物）
 备份恢复：定期备份数据库。全量备份，增量备份，差异备份。
 
@@ -664,6 +667,13 @@ FROM
     students
 GROUP BY 
     class;
+
+
+## OLAP和OLTP数据库方面的设计的区别？（字节）
+业务系统分为OLTP和OLAP，OLTP是联机交易场景，OLAP是联机分析场景。OLTP是面向交易处理，单笔交易数据量小，但要在短时间内给出结果，场景如购物、缴费、转账。OLAP是基于大数据集计算，场景如生成个人年度账单和企业财务报表。
+
+# HTAP
+HTAP实现了OLAP和OLTP的融合。
 
 ## 讲讲怎么减少行锁对性能的影响 page 1
 控制事务中锁的申请时机。根据两阶段锁协议，如果一个事务要更新多行，尽量把可能锁冲突的放到事务后期执行。让短事务先释放锁，减少长事务影响。
@@ -4234,6 +4244,9 @@ Go语言中用Channel进行线程通信。
 
 堆在内核中用虚拟页实现，内核用一个结构体记录堆包含的虚拟页。堆从低向高方向增长。
 
+## linux访问url，修改文件名的命令（小红书）
+wget -O 新文件名 URL
+
 ## 如何防止跨站攻击（如何防止CSRF攻击）（腾讯音乐）page 1
 跨域攻击是用户点击第三方页面，携带cookie提交表单，发起修改请求。
 
@@ -4356,19 +4369,19 @@ FIFO，LRU，最佳页面置换算法。
 
 # 常用框架 spring & Springboot & docker & k8s  这部分记的不是很熟，要常看 
 
-## Bean的生命周期了解吗？（bean的生命周期？）（Bean是怎么初始化的）（spring的bean是怎么发现并加载的）（小红书，得物，京东，腾讯）page 145
-## Spring生命周期了解吗？page 145
+## Bean的生命周期了解吗？（bean的生命周期？）（Bean是怎么初始化的）（spring的bean是怎么发现并加载的）（小红书，得物，京东，腾讯）page 161
+## Spring生命周期了解吗？page 161
 实例化。构造函数创建bean对象。
 
 依赖注入。用setter注入属性或依赖。
 
 aware回调。如果bean实现了beanNameAware等接口，spring回调方法。
 
-beanPostProcessor。调用postProcessBeforeInitialization。
+beanPostProcessor。在初始化前，调用postProcessBeforeInitialization，先对实例做一些加工。
 
-初始化。如实现了InitializingBean，调用afterPropertiesSet。再调用init方法。
+初始化。如实现了InitializingBean，调用afterPropertiesSet。再调用init方法，做自定义的初始化。
 
-BeanPostProcessor。调用postProcessAfterInitialization。
+BeanPostProcessor。调用postProcessAfterInitialization，做最后的包装。
 
 销毁。单例bean在容器关闭时触发，prototype bean的销毁不由容器管理，交给gc管理。
 
@@ -4443,6 +4456,14 @@ CGLIB动态代理不要求目标类实现接口，通过生成目标类的子类
 反射机制：通过reflect包中的类和方法实现，AOP可以在运行时获取目标类信息，动态调用类的方法。
 
 AspectJ AOP。 -->
+
+
+## 结合spring讲讲aop一系列过程（美团）
+准备阶段。启动Spring容器，注册特殊的bean Annotation aware aspectj auto proxy creator，然后扫描并注册切面bean。
+
+bean实例化和创建代理。bean实例化的过程：属性注入，bean post processor前置处理，bean初始化回调，后置处理，容器把初始化后的bean引用替换为代理对象，后继容器或其他bean获取到的都是代理。
+
+方法调用过程。首先拦截链，Spring把所有匹配该方法的advice包装并按优先级组成链式调用。然后环绕通知，执行拦截器或者真正的方法。然后如果在目标方法或环绕中抛出异常调用异常通知。然后在目标方法正常返回后调用后置通知。最后执行最终通知。
 
 
 ## AOP失效的原因（美团）page 1
