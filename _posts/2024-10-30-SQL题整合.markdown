@@ -95,3 +95,54 @@ ORDER BY cc.comment_count DESC
 LIMIT 1;
 ```
 
+# SQL题：学生表，属性有id、name、yuwen_grade、math_grade、english_grade、all_grade（总成绩）。取总成绩第三名的 学生id（可能会有并列的情况，并列的情况，所有第三名都要查出来），如果把all_grade去掉，查总成绩第三的学生。（蚂蚁）
+方法一
+
+
+```sql
+select id
+from (
+    select id, dense_rank() over (order by all_grade desc) as rnk
+    from student 
+) as ranked
+where rnk=3;
+```
+
+方法二，对于每个学生s，子查询统计比他总成绩更高的不同成绩有多少种。如果恰有2种更高的成绩，则该学生是第三名。
+
+
+```sql
+select id
+from student as s
+where (
+    select count(distinct all_grade)
+    from student 
+    where all_grade > s.all_grade
+) = 2 ;
+```
+
+如果没有all_grade字段，则：
+
+```sql
+select id
+from (
+    select id,
+    dense_rank() over(
+        order by (yuwen_grade + math_grade + english_grade) desc
+    ) as rnk
+    from student 
+)as ranked
+where rnk=3;
+```
+
+```sql
+select id 
+from student as s
+where(
+    select count(distinct (yuwen_grade+math_grade+english_grade))
+    from student 
+    where (yuwen_grade + math_grade + english_grade)
+    >(s.yuwen_grade + s.math_grade + s.english_grade)
+) = 2;
+```
+

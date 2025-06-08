@@ -80,6 +80,17 @@ select * from table是一次全表扫描，不会用A上的普通索引，IO次�
 ## MySQL默认的隔离级别是什么？（字节）page 47
 REPEATABLE-READ（可重复读）。可重复读可以解决 大部分 幻读问题，用快照读和当前读。快照读通过 mvcc 解决了幻读，当前读通过 记录锁+间隙锁 解决了幻读。
 
+## 为什么互联网公司选择用读已提交（为什么互联网公司选择用RC）
+读已提交在发生锁时，范围更小，系统并发吞吐量更高。
+
+对于不可重复读和幻读，可以用幂等设计，乐观锁在业务层进行保证。
+
+## 可重复读和读已提交的区别（RR和RC的区别）page 1
+读已提交允许不可重复读发生，可重复读不允许不可重复读发生。
+
+在MySQL innodb中，可重复读用MVCC和next key锁实现。
+
+
 ## 解释一下幻读？（字节）什么时候会发生幻读？（58同城）
 幻读：在一个事务中，两次查询同一个范围的数据，第二次查询返回了第一次查询中不存在的行，或者第一次查询存在的行在第二次查询中消失了。
 
@@ -156,21 +167,23 @@ b不命中，c不命中，索引树扫描index
 ## explain format = json select * from taotian_scene where a in (1,2,3) and b=3;
 a命中，b命中。
 
-## EXPLAIN FORMAT=JSON select * from myTest2 where a=3 order by b asc;（不懂）
+## EXPLAIN FORMAT=JSON select * from taotian_scene where a=3 order by b asc;（不懂）
 a命中，b命中，非主键唯一索引等值扫描ref。
 
-## EXPLAIN FORMAT=JSON select * from myTest2 where a=3 order by c asc;
+## EXPLAIN FORMAT=JSON select * from taotian_scene where a=3 order by c asc;
 a命中，c不命中，非主键唯一索引等值扫描ref，Using filesort指定的排序和索引排序不一致。
 
 但如果b的值在a=3时是固定的，则c自然有序，此时排序命中索引c。
 
-## EXPLAIN FORMAT=JSON select * from myTest2 where b=5 order by a asc;
-a不命中，b不命中。发生了索引树扫描index
+## EXPLAIN FORMAT=JSON select * from taotian_scene where b=4 order by a asc;
+a不命中，b不命中。发生了全表扫描all。
 
 ## EXPLAIN FORMAT=JSON select * from myTest2 where a=3 and b=5 or b=4 and c=1;
-a命中，b命中，c不命中。逻辑运算符AND优先级高于OR，发生了索引树扫描index
+a不命中，b不命中，c不命中。逻辑运算符AND优先级高于OR，发生了全表扫描all。
 
-口诀：左匹配，顺序定；范围截断后续停。
+
+
+<!-- 口诀：左匹配，顺序定；范围截断后续停。
 
     索引从左到右匹配，中间断了或范围查询后，后续字段无索引。
 
@@ -180,7 +193,9 @@ a命中，b命中，c不命中。逻辑运算符AND优先级高于OR，发生了
 
 逻辑运算分优先，索引树扫描现。
 
-    AND 优先 OR，复杂条件易导致索引树扫描。
+    AND 优先 OR，复杂条件易导致索引树扫描。 -->
+
+
 
 Type连接类型（1）system：系统表，少量数据，往往不需要进行磁盘IO；（2）const：常量连接；（3）eq_ref：主键索引(primary key)或者非空唯一索引(unique not null)等值扫描；（4）ref：非主键非唯一索引等值扫描；（5）range：范围扫描；（6）index：索引树扫描；（7）ALL：全表扫描(full table scan)；
 
@@ -197,6 +212,18 @@ Using where表示使用了where条件过滤。
 
 Using temporary表示是否使用了临时表，一般多见于order by 和 group by语句。
 
+## MySQL可能单查 A 或者单查 B， 也有可能 A、B 一起查。是建两个单独的索引？还是建一个 A和B 的联合索引？（京东）
+建立两个单独的索引，单查A，单查B可以命中索引，当A、B一起查时，MySQL会优化使用两个索引，即索引合并。
+
+## in和exists区别？
+select * from A where cc in (select cc from B);
+
+select * from A where exist (select cc from B where B.cc=A.cc);’
+
+如果表A比B的数据量大，那么IN查询的效率比exists高，因为这时B表如果对cc列加了索引，那么in查询效率高。
+
+同样，如果表A比B小，那么用exists子查询效率会更高，因为可以用到A表中对cc列的索引，而不用从B中进行cc列的查询。
+
 ## 慢查询EXPLAIN FORMAT=JSON分析的时候，type和extra出现什么内容表示不太优？（EXPLAIN FORMAT=JSON中的哪些type和extra值表明查询可能存在性能问题？）（美团）page 1
 type列。all是最差的访问方式，MySQL对整张表全表扫描。index虽然比all好，因为扫描的是索引而不是数据行，但如果索引范围大，也会导致高IO负荷。期望看到的是system const eq_ref ref range。
 
@@ -205,7 +232,7 @@ extra列。using temporary表示执行过程要创建临时表，发生在用gro
 ## select * from x 1、where a = 1 and b = 1 ；2、where b = 1 and c = 1 ；3、where c = 1 and a = 1。怎么建索引？（boss直聘）
 建立联合索引ab，bc，ca
 
-## 以abc为例，在什么情况下，单查询b也能够命中联合索引？（腾讯，得物）
+## 以abc为例，在什么情况下，单查询b也能够命中联合索引？（腾讯，得物，字节）
 
 联合查询遵循最左匹配原则，如果查询条件只涉及b，那么MySQL会尝试使用索引前缀部分。如果查询条件是where b=某个值，MySQL会先找a的值，然后在a的值相同下找b的值， 如果a的值与b的值唯一确定，那么查询就可以命中索引 。
 
@@ -295,6 +322,8 @@ sql解析。语法检查。
 更新过程中如果涉及到二级索引，在后台用change buffer延迟写更新，减少磁盘随机io。
 
 先生成undolog，用于mvcc。事务提交时，写redolog刷盘，保证持久性。最后生成binlog，记录事务变更。
+
+## canel是增量更新，如果表结构发生了变化，canel还可以监听的到么，怎么做补偿？（哈啰）
 
 ## order by索引和非索引的区别？（字节）page 1
 有索引的orderby，扫描方式为索引范围扫描，按索引顺序直接输出已排好序的数据，他是顺序IO，explain语句的extra字段为using index。
@@ -672,7 +701,7 @@ GROUP BY
 ## OLAP和OLTP数据库方面的设计的区别？（字节）
 业务系统分为OLTP和OLAP，OLTP是联机交易场景，OLAP是联机分析场景。OLTP是面向交易处理，单笔交易数据量小，但要在短时间内给出结果，场景如购物、缴费、转账。OLAP是基于大数据集计算，场景如生成个人年度账单和企业财务报表。
 
-# HTAP
+## HTAP
 HTAP实现了OLAP和OLTP的融合。
 
 ## 讲讲怎么减少行锁对性能的影响 page 1
@@ -777,11 +806,24 @@ MySQL 的存储引擎采用插件式架构，允许不同的表使用不同的�
 3.Redisson库。
 
 ## Redis分布式锁的原理是什么（贝壳）page 1
-加锁。set nx ex，nx仅当lockeky不存在时设置。ex设置过期时间。
+加锁。set nx e x，nx仅当lock key不存在时设置。e x设置过期时间。
 
 解锁。避免他人误删除锁，用lua脚本保证读取，条件判断，删除操作原子。用eval命令在Redis内执行，不被中断。
 
 Redis如何保证原子性。1.单线程模型，Redis进程只有一个命令执行线程。2.IO多路复用，Redis用epoll拿到一批就绪socket，但逐个回调，仍是单线程串行。
+
+## setnx实现的分布式锁有什么问题？
+死锁。如果持有锁的客户端宕机，锁将永远存在，其他客户端无法获取，导致死锁。解决方案，必须设置锁的过期时间，set e x n x。
+
+锁误删。客户端a超时释放后，客户端b获取锁，此时客户端a完成任务后误删客户端b的锁。解决方案，锁的value包含唯一标识，释放时用lua脚本原子校验value是否匹配。
+
+## redisson分布式锁的问题是什么？
+
+
+## redisson分布式锁底层使用什么数据结构？
+Redis hash存储锁状态，key存储锁名，field存储uuid和thread id，value存储重入次数。
+
+redisson公平锁用到Redis List和z set。List作为请求队列，锁获取失败时，将uuid和thread id，r push到List末尾。释放锁或重试时，用l pop检测自己是否排在队头。z set跟踪超时。z add将每个线程超时时间作为score，成员为uuid和thread id
 
 ## redisson 是怎么确定锁的拥有者的（美团）
 redisson给每个调用者打上唯一标识，即UUID加上线程id实现的。
@@ -828,7 +870,7 @@ redlock在N个大于5Redis节点加锁。
 
 基于Zookeeper实现：用它的临时顺序节点实现。每个节点尝试创建一个临时顺序节点，判断自己是否是最小节点，如果是则获取锁成功，否则监听前一个节点的删除时间。可靠性高。
 
-基于etcd实现。用raft共识算法，写操作必须多数节点一致后才返回成功，解决Redis异步复制导致的多主并发持锁的情况，用事务保证原子性。
+基于e t c d实现。用raft共识算法，写操作必须多数节点一致后才返回成功，解决Redis异步复制导致的多主并发持锁的情况，用事务保证原子性。
 
 <!-- 羊群效应，大量进程都想获取锁。解决。1.在与该方法对应的持久节点的目录下，为每个进程创建一个临时顺序节点。2.每个节点获取所有临时节点列表，对比自己的编号是否最小，最小的获得锁。3.若本进程的临时节点编号不是最小，则注册watcher，监听自己的上一个临时顺序节点，节省资源。 -->
 
@@ -887,6 +929,13 @@ redlock在N个大于5Redis节点加锁。
 
 雪花算法不是有序的，有时钟回拨问题，id可能重复。
 
+## 雪花算法的时钟回拨问题 page 1
+解决方案：等待机制：当检测到时钟回拨时，可以简单等待时钟追上当前时间再继续生成。
+
+预留ID区间：在设计时预留一部分ID区间，处理时钟回拨情况。
+
+使用逻辑时钟：即使物理时钟回拨，逻辑时钟仍然单调递增。
+
 ## 雪花算法由符号位，时间戳，机器号和序号组成，怎么保证全局有序性？时间戳只会增大不会减小，序号可以保证一毫秒内的有序性。那你同一毫秒内机器号大的生成序号小，最后总大小反而大怎么办？（雪花算法如何通过时间戳、机器号和序号来保证生成的全局唯一、有序的ID？假设在同一毫秒内，不同机器生成的ID中，机器号大的节点可能得到较小的序号，导致整体ID数值更大，这种情况如何确保全局顺序不出错？）（字节）page 157
 在同一毫秒内，虽然是按机器号与序号共同排序，但他不会破坏全局有序性。雪花算法他只能保证按字段组合的有序性，在同一毫秒，不同机器之间的序号根本就不能比，不保证他们之间的顺序，能保证的只能是同一毫秒内，同一机器内按序号排序。
 
@@ -898,6 +947,10 @@ redlock在N个大于5Redis节点加锁。
 
 如果宕机，这时候看门狗就不能工作，也就不能续期，那么在默认的配置下最长 30s 的时间后，这个锁就自动释放了。
 
+## Redis分布式锁的key超时被删除了任务还没完成怎么解决？（元戎启行）page 1
+首先用看门狗机制，在锁仍持有时，客户端定期向Redis发续期命令，将锁TTL延长。如果客户端宕机，则续期也会中断。
+
+其次如果任务本身非常耗时，则应拆分为多阶段独立加锁的小事务。
 
 ## 如果获取分布式锁后，业务执行过程中抛异常了怎么办（蚂蚁）page 1
 用try finally，finally块中执行释放锁。
@@ -978,7 +1031,7 @@ redlock在N个大于5Redis节点加锁。
 
 分布式锁：redis hash在分布式系统中保证对资源的互斥访问。
 
-## setnx的底层原理是什么？（京东，满帮）page 146
+## setnx的底层原理是什么？（京东，满帮，蚂蚁）page 146
 原子性通过单线程模型实现，Redis基于单线程的事件循环处理命令，并通过哈希表操作，原子性检查键是否存在。
 
 
@@ -1034,13 +1087,13 @@ Redis采用单线程处理命令，lua脚本执行期间独占整个线程，所
 ## 常用的缓存淘汰算法有哪些？（58同城）
 当maxmemory达到上限时，又有新写入请求，必须淘汰旧数据腾空间。
 
-淘汰策略。1.不淘汰，noeviction，写请求直接返回错误，不推荐用于缓存场景。2.仅对设置过期时间的key淘汰，volatile-random，随机删除；volatile-ttl，删除最近将要过期的；volatile-lru，基于LRU；volatile-lfu，基于LFU。3.对所有key淘汰，allkeys-random，随机删除；allkeys-lru和lfu。
+淘汰策略。1.不淘汰，noeviction，写请求直接返回错误，不推荐用于缓存场景。2.仅对设置过期时间的key淘汰，volatile-random，随机删除；volatile-ttl，删除最近将要过期的；volatile-l r u，基于LRU；volatile-l f u，基于LFU。3.对所有key淘汰，allkeys-random，随机删除；allkeys-l r u和l f u。
 
 LRU算法。逻辑上维护链表，看数据最后一次使用到发生淘汰的时间长短，但Redis不会移动整个链表，且在淘汰时，Redis随机抽样N个，选出一个最久未访问的一条删除。
 
 LFU算法，看一定时间内数据被使用的次数，对象越冷门越容易被淘汰。
 
-首选allkeys-lru，对冷热数据识别最优。
+首选allkeys-l r u，对冷热数据识别最优。
 
 
 <!-- 向1G内存的redis写入2G数据时，结果分两种情况：若未设置内存限制，redis会持续占用系统内存直到被OOM killer终止或swap导致性能下降；若配置maxmemory及淘汰策略，redis会持续淘汰旧数据。
@@ -1134,7 +1187,12 @@ no：写命令会写入AOF文件，不会主动同步到磁盘，由操作系统
 
 扩容。1.节点添加，cluster meet将新节点加入到集群。2.槽重分配--cluster reshard。
 
-## 什么是bigkey？怎么解决？（作业帮，阿里）page 34
+## redis怎么设置过期时间（字节）
+用expire key seconds命令，将key的过期时间设置为seconds。
+
+或者写入时直接指定过期时间，set key value ex seconds。
+
+## 什么是bigkey？怎么解决？（大key）（作业帮，阿里）page 34
 
 一个键（key）所对应的值（value）占用的内存非常大，例如，当一个字符串类型的值超过 10 KB 或者一个复合类型的值包含超过 5000 个元素时，这样的键可以被视为 bigkey。
 
@@ -1225,7 +1283,9 @@ redis的lru机制。lru可以帮助识别最近最少使用的key。
 
 查询元素。同样用n个哈希函数对元素哈希，取模计算索引，检查n个位置是否全部为1，如至少一个位置为0，则一定不存在，如果n个位置全为1，则可能存在。
 
-假阳性：布隆过滤器说数据在缓存中,但是实际可能不在,而如果他说数据不在缓存中,那么肯定数据不在。
+
+
+<!-- 假阳性：布隆过滤器说数据在缓存中,但是实际可能不在,而如果他说数据不在缓存中,那么肯定数据不在。 -->
 
 ## 假如数据库更新，删除了几个数据，布隆过滤器怎么处理？（布隆过滤器怎么解决删除操作的局限性）（饿了么）page 1
 原始的布隆过滤器不支持删除，解决方案有计数型过滤器和布谷鸟过滤器。
@@ -1319,6 +1379,27 @@ public void unlinkBigKey(Jedis jedis, String key) {
     jedis.unlink(key);
 }
 ```
+
+## mset如果有一个点出现差错怎么实现事物回滚（mset命令如果发生异常怎么实现回滚）（百度）
+在业务层做补偿，先读旧值，然后执行mset，发生异常则补偿。
+
+```java
+Map<String,String>oldVal=jedis.mget(keys);
+try{
+    redis.mset(kvMap);
+}catch(Exception e){
+    if(!oldVal.isEmpty()){
+        jedis.mset(oldVal);
+    }
+    throw e;
+}
+```
+
+## Redis lua脚本对多个槽的key set会报错怎么办？（百度）
+方案一，把这些key绑定到同一个槽中，在key名称中用大括号，作为哈希标签。
+
+方案二，拆分脚本，每次操作同一个槽的一组key。
+
 
 ## redis怎么给hash一个key单独设置过期时间(用友)
 主动删除：用z set存储，key是hash中的字段，value是过期时间。定期扫描删除。
@@ -1512,7 +1593,7 @@ public class RedisTransactionExample {
 
 运行时数据区分为方法区、堆、方法栈、本地方法栈、程序计数器。
 
-执行引擎。jvm不执行字节码，要翻译成机器码，有两种方式。1.解释器，逐条读取字节码，翻译并执行，不产生机器码缓存。2.及时编译jit。将热点方法批量翻译成本地机器码缓存。hotspot提供C1 client、c2 server、graal编译器，c1简单，c2编译时间长，适合追求性能，graal是新一代的编译器。hotspot用分层编译，先用c1编译热点方法，再对其中更热点的代码用c2深度优化。
+执行引擎。jvm不执行字节码，要翻译成机器码，有两种方式。1.解释器，逐条读取字节码，翻译并执行，不产生机器码缓存。2.及时编译j i t。将热点方法批量翻译成本地机器码缓存。hotspot提供C1 client、c2 server、graal编译器，c1简单，c2编译时间长，适合追求性能，graal是新一代的编译器。hotspot用分层编译，先用c1编译热点方法，再对其中更热点的代码用c2深度优化。
 
 ## 常量池具体在JVM什么位置？（高德地图）page 1
 常量池分为类文件常量池、运行时常量池、字符串常量池。
@@ -1535,6 +1616,11 @@ public class RedisTransactionExample {
 
 局部变量定义在方法内部或代码块，存储在当前线程的Java栈帧中。每次方法调用创建新的栈帧存储局部变量，不同线程有独立栈空间。原始类型的局部变量直接存储在栈中；对象类型的局部变量存储对象引用地址在栈上，实际对象存储在堆上。对象类型的局部变量的生命周期与方法一致，方法执行完毕，局部变量清理。而实际对象的生命周期由GC负责，在不可达之后回收。
 
+## jvm为什么要区分堆和栈
+存取速度。栈的分配释放速度快，他只移动栈顶指针，适合存放短生命周期的小数据，如基本类型，对象引用。堆的分配较为复杂，要维护空闲块、处理碎片，还要和gc配合。
+
+线程安全。栈他每个线程是有单独的栈，天然线程安全。堆是所有线程共享的区域，对象被多个线程访问时，需要同步机制保证可见性和一致性。
+
 ## JVM的永久代中会发生垃圾回收吗
 永久代会发生垃圾回收Full GC，清理没有被类加载器引用的元数据和常量池。元空间也会发生Full GC。
 
@@ -1543,7 +1629,7 @@ public class RedisTransactionExample {
 
 常量池：Java对字符串有特殊优化，如字符串常量池。当创建相同内容字符串时，Java只是将他们指向内存中同一个对象。
 
-## String不可变的好处是什么（滴滴）page 1
+## String不可变的好处是什么（Java String为什么是不可变的？）（滴滴）page 1
 安全：String对象不可被修改，在多线程环境是安全的。
 
 常量池：Java对字符串有特殊优化，如字符串常量池。当创建相同内容字符串时，Java只是将他们指向内存中同一个对象。
@@ -1671,6 +1757,9 @@ private void fixInsert(Node root, Node node) {
 
 ## 讲讲红黑树（红黑树的特点）（淘天）page 1
 红黑树是一种平衡二叉查找树，他是为了解决普通二叉查找树在数据更新过程中，复杂度退化的问题产生的。红黑树的高度近似Log n，且它是近似平衡，插入删除查找时间复杂度都是log n。
+
+## Mysql 数据页之间是如何关联的？（京东）
+非叶子节点的数据页之间用指针关联，叶子节点的数据页用双向链表，双向指针关联。
 
 ## 为什么选择区分度大的字段作为索引，从数据结构层面解答（为什么Mysql建立索引选择区分度大的字段？）（贝壳）page 1
 在B+树上建立索引，如果该列值的区分度小，比如只有10个不同的值，每个叶子key要指向大量行。而如果该列值的区分度大，比如有10万个不同的值，叶子层就能容纳更多不同的key，每个指针对应更少的行。
@@ -2224,6 +2313,22 @@ jdk1.7扩容把所有key value重新哈希到新数组，且遍历时采用头�
 
 非公平锁：高并发业务，如秒杀场景，更看重吞吐量和响应速度。
 
+## 锁的分类
+当无法判断锁住的代码会执行多久时，用互斥锁。
+
+当能确定被锁住的代码执行时间很短时，用自旋锁。他用C A S在用户态完成加锁和解锁。加锁失败的线程会忙等待，他不是一直执行C A S函数，而是和cpu紧密配合，用cpu提供的pause指令，减少循环等待。
+
+当能明确区分读和写两种场景，用读写锁。读写锁可以倾向于读线程，也可以倾向于写线程。为避免倾向性导致读写线程饿死，可以用队列把请求锁的线程排队，按照先来后到顺序加锁，此时读线程仍然可以并发，但不能插队到写线程前。Java的ReentrantReadWriteLock读写锁就支持这种公平读写锁。注意，在读写锁中，如果先获取读锁，再获取写锁，这是锁的升级，ReadWriteLock不支持这个操作，会导致线程阻塞。但在ReadWriteLock中，锁的降级是允许的，即先获取写锁，再获取读锁。
+
+参考：https://time.geekbang.org/column/article/234548
+
+## stampedlock
+stampedlock支持写锁、悲观读锁和乐观读。其中写锁、悲观读锁的语义和ReadWriteLock是类似的。不同的是，stampedlock的写锁和悲观读锁操作成功后，返回一个stamp，然后解锁要传入stamp。
+
+stampedlock不支持重入，另外，他的悲观读锁和写锁不支持条件变量。
+
+最后，不要对正在自旋等待的stampedlock的线程调用Interrupt方法，否则导致CPU忙等。如果需要在等待时支持中断，要换成readlock Interruptibly方法和writelock Interruptibly方法。
+
 ## 对象锁和类锁的区别？（百度考过）
 对象锁时针对某个具体对象实例的锁，类锁是针对整个类的锁。
 对象锁可以通过Synchronized关键字修饰实例方法实现。
@@ -2550,7 +2655,7 @@ LinkedList基于双向链表，头尾插入删除快，但是随机访问慢。
 
 线程调度：只要切换线程上下文，如寄存器状态，栈指针等，开销较小。
 
-## 进程如何切换的？（腾讯）
+## 进程如何切换的？（腾讯，字节）
 进程切换的触发条件：
 
 时间片用完：操作系统为每个进程分配一个时间片。
@@ -2568,6 +2673,9 @@ IO操作：进程进入等待态。
 选择下一个执行的进程：调度算法。先来先服务，短作业优先，时间片轮转。
 
 恢复下一个进程的上下文。
+
+## 想提升吞吐量，用哪种进程调度算法更好（字节）
+吞吐量是单位时间内系统完成作业数，短作业优先更好，他能最大化单位时间完成作业数。
 
 ## 通过什么信号通知进程切换到下一个进程？（蚂蚁）
 SIGALRM，SIGCHLD。
@@ -2610,6 +2718,9 @@ happens-before原则，保证有序性。
 
 <!-- 他是Java语言规范中定义的规则， -->
 
+## 什么是泛化调用（百度）
+TODO：file:///E:/download/23%E4%B8%A8%E5%A6%82%E4%BD%95%E5%9C%A8%E6%B2%A1%E6%9C%89%E6%8E%A5%E5%8F%A3%E7%9A%84%E6%83%85%E5%86%B5%E4%B8%8B%E8%BF%9B%E8%A1%8CRPC%E8%B0%83%E7%94%A8%EF%BC%9F.pdf
+
 ## 单处理器有可见性问题吗？（字节）page 150
 有可见性问题。
 
@@ -2629,9 +2740,9 @@ happens-before原则，保证有序性。
 synchronized底层实现依赖于Monitor和对象头mark word，用字节码中Monitor enter Monitor exist指令实现同步控制。jvm为提升性能，引入三种不同锁偏向锁、轻量级锁、重量级锁实现。
 
 
-偏向锁。假设一个对象在生命周期内只会被一个线程访问。他用cas在对象头mark word记录持有锁线程id。
+偏向锁。假设一个对象在生命周期内只会被一个线程访问。他用c a s在对象头mark word记录持有锁线程id。
 
-轻量级锁，实现流程。1.复制对象头中的mark word到一个displaced header保存状态。2.用cas在对象头中设置轻量级锁标记。3.如果cas成功，则当前线程获得了锁，若失败，则竞争激烈，升级为重量级锁。
+轻量级锁，实现流程。1.复制对象头中的mark word到一个displaced header保存状态。2.用c a s在对象头中设置轻量级锁标记。3.如果c a s成功，则当前线程获得了锁，若失败，则竞争激烈，升级为重量级锁。
 
 重量级锁。用操作系统互斥量实现同步。
 
@@ -2642,6 +2753,13 @@ jvm会根据锁竞争程度调整锁实现策略，会有锁升级。也有锁�
 <!-- 通过monitorenter和monitorexit指令获取和释放对象监视器确保同一时刻只有一个线程进入代码。monitorenter，如果对象锁没有被其他线程持有，将锁的持有计数器设为1，monitorexit会将锁的持有计数器减一。
 
 Synchronized用两个队列来管理线程， entry list ，所有 尚未获得锁的线程 放入这个队列，等待获取锁。 wait set ，当线程调用wait方法时，它释放当前持有的锁并进入对象的wait set，直到另一个线程在同一个对象上调用notify将其唤醒，被唤醒的线程不会直接获得锁，而是转移到entry list中重新竞争。 -->
+
+## 原子类的定义、原理和使用场景
+原子类用无锁方案解决原子性问题。原理是用硬件C A S指令，C A S包含三个参数，共享变量内存地址A，比较的值B，和共享变量的新值C；且只有内存中地址A的值等于B时，才能将地址A中的值更新为新值C。
+
+原子类包括原子化的基本类型、原子化的对象引用类型、原子化数组、原子化对象属性更新器和原子化累加器。
+
+使用场景：当互斥锁的性能无法满足需求时，无锁的原子操作更为合适。他适合解决针对一个共享变量的互斥问题，如果需要解决多个变量的原子性问题，建议用互斥锁方案。
 
 ## JDK1.6之后的synchronized关键字底层做了哪些优化？（重要）
 
@@ -3249,6 +3367,9 @@ volatile关键字。通过内存屏障禁止指令重排序，确保多线程环
 
 # JVM
 
+## 为什么分为年轻代和老年代？（拼多多）
+存在假设，大部分Java对象只存活一小段时间，而活下来的小部分Java对象则存活很长一段时间。
+
 ## 对象在Java堆中的分配与回收。（说说Java对象分配规则）（滴滴考过）page 1
 Java堆内存结构。新生代，包含Eden区，新创建对象在这分配，频繁Minor gc。Survivor区，存经过一次gc存活的对象。老年代，存生命周期较长的对象。元空间，存储类元数据。
 
@@ -3463,6 +3584,9 @@ jit编译后的代码在 代码缓存区域code cache ，通常位于堆外内�
 
 划分为程序计数器、虚拟机栈、本地方法栈、堆、方法区以及直接内存（在JDK 1.8及之后版本）。本地方法栈专门处理本地非Java语言函数调用的栈。区就是共享区域，方法区保存与类相关的全局信息。堆，方法区，虚拟机栈和本地方法栈可能产生OOMError。
 
+## 创建对象一定分配在堆里吗，了解过逃逸分析和栈上分配吗？ page 1
+不是所有对象都在堆分配，逃逸分析，判断对象引用是否逃逸出方法和线程，依据是对象是否赋值给某个堆中对象的字段或静态变量，或者对象是否作为方法调用的调用者。hotspot虚拟机并没有采用在栈上分配，而是用标量替换方式，即将一个对象拆解为若干局部变量，直接存放在栈中或者寄存器中。
+
 ## JVM如何使用栈处理方法调用和返回？
 
 每次方法调用时，一个新的栈帧被压入栈顶，包含方法的参数、局部变量等信息。方法返回时，栈帧被弹出，控制流回到调用方法的位置。
@@ -3524,14 +3648,17 @@ tomcat的类加载器层次结构。首先有个common类加载器，加载所�
 # 计算机基础
 
 ## 内存持续上升，该如何排查问题？（遇到内存泄露有什么排查方式）（内存泄漏的排查思路？）（内存泄漏、原因、解决办法）（Java内存泄漏怎么排查？）（阿里）page 33
-问题定位。1.监控报警，用APM如普罗米修斯和grafana，观测jvm heap，native内存，gc频次，响应时长，load average。2.分层排查。先在系统层面判断机器资源如内存、io瓶颈。然后在进程层面，如Java进程，用pidstat命令看rss（常驻集合大小，非交换区内存用K字节），vsz（虚拟地址大小，虚拟内存用K字节），线程树。然后在jvm层面看堆新生代，老年代，元空间使用情况，以及gc日志。应用层面看线程栈、对象分配热点。
+问题定位。1.监控报警，用APM如普罗米修斯和grafana，观测jvm heap，native内存，gc频次，响应时长，load average。2.分层排查。先在系统层面判断机器资源如内存、io瓶颈。然后在进程层面，如Java进程，用pid stat命令看rss（常驻集合大小，非交换区内存用K字节），vsz（虚拟地址大小，虚拟内存用K字节），线程树。然后在jvm层面看堆新生代，老年代，元空间使用情况，以及gc日志。应用层面看线程栈、对象分配热点。
 
-常用工具。1.linux层面。top，看进程线程cpu内存实时占用。vmstat看整体内存，swap，io统计。pidstat -p $pid -r -t 1 5细粒度监控线程进程内存（RSS，vsz）和上下文切换。2.jdk工具。jstat -gcutil $pid 1s，监控gc次数。jstack获取线程快照，排查死锁。jmap -heap $pid 看堆分代容量。jmap -dump:live,format=b,file=heap.hprof $pid 生成heap dump，用MAT离线分析。
+常用工具。1.linux层面。top，看进程线程cpu内存实时占用。vmstat看整体内存，swap，io统计。pid stat -p $pid -r -t 1 5细粒度监控线程进程内存（RSS，vsz）和上下文切换。2.jdk工具。j stat -gcutil $pid 1s，监控gc次数。j stack获取线程快照，排查死锁。j map -heap $pid 看堆分代容量。j map -dump:live,format=b,file=heap.hprof $pid 生成heap dump，用MAT离线分析。
 
 典型的流程。1.初步确认。top/ps 确认 Java 进程内存确实持续上涨且无释放。2.GC 日志分析。开启 -Xlog:gc*:file=gc.log:time,uptime（或旧版 -XX:+PrintGCDetails）观察 Old GC 频率和停顿时长。3.实时指标监控。用 jstat -gcutil 验证 Young/Old/Metaspace 使用趋势。4.线程层面排查。top -Hp <pid> 或 pidstat -t，找出“吃内存”或“持续运行”的线程。5.Heap Dump 离线分析。触发 Heap Dump（OOM 自动生成或 jmap -dump）。在 MAT 中打开，先看 Leak Suspects，再看 Histogram，定位占用最多的类。选中可疑对象，用 “With Incoming References” 查找 GC Root 路径，明确泄漏链。6.复现。写相同场景的单元/压测脚本，反复对比分析。7.修复。根据泄漏原因修复，回归压测，保证内存稳定、GC 停顿正常。
 
 ## 看堆内存溢出的时候会看那些指标？page 1
 jvm堆指标。用jstat -gcutil，看s0 s1 u使用率，s0 s1c容量，eden old metaspace使用率，以及ygc fgc的次数和耗时。用jmap -histo[:live] $pid 看实例数量和总大小。
+
+## linux查性能瓶颈的命令，查内存的命令，查磁盘的繁忙程度的命令（蚂蚁）
+cpu用top观察load average负载。内存用free - h看总内存，已用内存，空闲内存。磁盘io用iostat - x 1 5看% util利用率，await平均等待时间。
 
 ## 讲讲什么是load average（讲讲什么是系统负载）page 1
 load average是linux系统衡量整体系统负载状态指标，用三个数值描述系统在最近1分钟5分钟15分钟时间区间内平均有多少个进程处于可运行状态或等待io状态。
@@ -3545,7 +3672,7 @@ load average是linux系统衡量整体系统负载状态指标，用三个数值
 
 数据库性能调优。1.避免死锁。（1）优化SQL。用慢查询日志和EXPLAIN FORMAT=JSON定位瓶颈，针对具体场景，设计和调整索引，如经常更新的记录用主键更新，避免用辅助索引更新，减少死锁风险。（2）事务和锁管理。长事务容易死锁，拆解长事务，针对死锁，设置合理的锁等待超时参数innodb lock wait timeout。写事务代码时，保证操作遵循固定顺序。（3）隔离级别。对允许脏读幻读场景，用读已提交减少间隙锁，2.索引优化。（1）对主键索引用自增字段，保证数据顺序写入，减少页分裂和内存碎片。对于辅助索引要考虑能否索引覆盖，避免回表。注意联合索引顺序。（2）索引失效。重写SQL或使用hint比如force index强制使用索引。
 
-## 做过MySQL调优吗？（MySQL 调优）（得物，作业帮多次考）page 35
+## 做过MySQL调优吗？（MySQL 调优）（MySQL优化）（得物，作业帮多次考）page 35
 ## 说一下MySQL常用优化方式（恒生，帆软，滴滴考过，快手）page 35
 ## mysql 的索引调优（淘天）
 数据库性能调优。1.避免死锁。（1）优化SQL。用慢查询日志和EXPLAIN FORMAT=JSON定位瓶颈，针对具体场景，设计和调整索引，如经常更新的记录用主键更新，避免用辅助索引更新，减少死锁风险。（2）事务和锁管理。长事务容易死锁，拆解长事务，针对死锁，设置合理的锁等待超时参数innodb lock wait timeout。写事务代码时，保证操作遵循固定顺序。（3）隔离级别。对允许脏读幻读场景，用读已提交减少间隙锁。2.索引优化。（1）对主键索引用自增字段，保证数据顺序写入，减少页分裂和内存碎片。对于辅助索引要考虑能否索引覆盖，避免回表。注意联合索引顺序。（2）索引失效。重写SQL或使用hint比如force index强制使用索引。
@@ -3553,6 +3680,19 @@ load average是linux系统衡量整体系统负载状态指标，用三个数值
 
 
 <!-- 参考专栏课-刘超-Java性能调优实战（完结） -->
+
+## MySQL某个表数据量较小，希望它驱动大数据量的表的时候，怎去优化性能？（京东）
+MySQL默认用嵌套循环连接算法，由内外两个循环构成，分别从两个表中顺序取数据。外层循环称为外表，内层循环称为内表，因为这个算法是从遍历外表开始，因此外表也被称为驱动表。
+
+嵌套循环算法分为S N L J，B N J和I L J。
+
+S N L J的过程是先遍历外表，取一条记录r 1，遍历内表，对于内表每条记录与r 1做join并输出结果。重复上面的步骤。
+
+b n j是对s n l j的优化。在遍历外表时，不再只取一条记录，而是取一个批次记录，加载到内存，减少了磁盘io。
+
+i l j在b n j上使用索引。先遍历外表，取一个批次记录r i，用连接键和r i确定对内表索引的扫描范围，再用索引得到若干数据记录s j。将r i和s j每条记录做join。
+
+为优化性能，首先内表中要在连接键上建立索引，其次用explain查看优化器的驱动表是否选择正确。
 
 ## 讲讲MySQL 的索引调优（淘天）
 定位问题，打开慢查询日志，找到响应时间最长的SQL。
@@ -3564,6 +3704,22 @@ load average是linux系统衡量整体系统负载状态指标，用三个数值
 设计索引，用select，orderby的字段进行组合。
 
 创建索引后再运行explain，检查rows，type，extra是否改善。
+
+## 如何预估接口上线后的QPS page 1
+首先，理解业务模型和场景。每个业务请求会消耗不同的系统资源，通过分析生产流量、业务比例、时间段，得出每个业务类型的流量特征。业务比例设计要贴合真实生产环境。如果没有生产流量，可以用历史数据预测流量。
+
+其次进行基准性能测试。看单个业务在理想条件下最大TPS。测试时注意不同业务类型的最大承载能力。具体性能测试方案，用jmeter负责发压，普罗米修斯做监控。发压线程递增策略，采取阶梯递增方式，观察TPS。
+
+
+然后是压力测试和混合场景设计。根据实际业务比例，设计混合性能场景。要关注TPS、响应时间、错误率指标。
+
+
+计算QPS。基于每个业务TPS，结合比例，估算总的QPS。
+
+优化。在实际测试中，要观察TPS和响应时间的变化，判断瓶颈出现的时机。
+
+
+参考：https://time.geekbang.org/column/article/178068，https://time.geekbang.org/column/article/178080，https://time.geekbang.org/column/article/181916，https://time.geekbang.org/column/article/182912（最重要），https://time.geekbang.org/column/article/187963，https://time.geekbang.org/column/article/189010，https://time.geekbang.org/column/article/190684
 
 ## 从输入URL到页面展示到底发生了什么？（字节考过，shopee）page 1
 ## 浏览器输入一个url的全流程（腾讯多次考）page 1
@@ -3950,17 +4106,17 @@ epoll wait等待事件发生。
 
 3.HTTP长连接请求数量达上限。
 
-4.TCP参数配置不当。tcp_tw_reuse参数没有正确配置，导致TIME_WAIT状态的连接无法被重用。
+4.TCP参数配置不当。tcp tw reuse参数没有正确配置，导致TIME WAIT状态的连接无法被重用。
 
 
 
-解决：1.修改tcp_tw_reuse参数。调整tcp_max_tw_buckets限制TIME_WAIT连接数量。
+解决：1.修改tcp tw reuse参数。调整tcp max tw buckets限制TIME WAIT连接数量。
 
 2.用长连接代替短连接。
 
 3.在应用层实现连接池。
 
-注：TCP里面是先close_wait再time_wait。time_wait发生在第4次挥手。
+注：TCP里面是先close wait再time wait。time wait发生在第4次挥手。
 
 
 <!-- 原因：高并发客户端和服务器连接频繁建立和关闭。
@@ -4004,6 +4160,18 @@ TCP数据包由于网络拥塞，发生延迟或丢失。当队列中某个数�
 
 用高效协议：如QUIC。
 
+## TCP队头阻塞问题
+使用http并发连接，同时对一个域名发起多个长连接。
+
+用域名分片技术，多开几个域名，这些域名都指向同一台服务器，这样实际长连接数量可以更多。
+
+## 发起http请求后，如果请求超时，该怎么排查（字节）
+客户端排查。先检查linux timeout、socketTimeout、ConnectTimeout的配置。然后用curl -v看能否复现，并检查http的方法、headers、请求体大小。
+
+网络排查。用nsloopup看域名解析时长。检查NGINX、api网关的access日志，看请求是否到达上游，排查是否在中间件层被限流、熔断或路由到不健康节点。
+
+服务端排查。在服务端应用定位到客户端请求的traceid，结合apm监控调用链。
+
 ## TCP keep alive和http keep alive区别？（腾讯）page 153
 TCP keep alive：检测TCP连接存活状态。一段时间没有数据传输时，发送小的探测包确认对方是否仍然在线。默认关闭
 
@@ -4020,13 +4188,13 @@ HTTP：复用tcp连接。在同一个TCP连接上发送多个HTTP请求和响应
 TCP用滑动窗口协议实现。接收方在ack报文中报告剩余可用缓冲区大小rwnd。关键变量。last byte acked，已确认的数据末端位置。last byte sent，已发送但不确认的最大序列号。last byte acked+rwnd，可发送的最远边界。
 
 ## 讲讲TCP拥塞控制 page 1
-TCP总发送窗口由cwnd，rwnd最小值决定，cwnd反映网络拥塞情况，rwnd反映接收方能力。
+TCP总发送窗口由c w n d，r w n d最小值决定，c w n d反映网络拥塞情况，r w n d反映接收方能力。
 
-慢启动。连接建立初期，cwnd从1MSS（最大报文长度）开始，每收到一个ack，cwnd增加一个MSS，指数级增长，直到慢启动阈值ssthresh，65535字节。
+慢启动。连接建立初期，c w n d从1MSS（最大报文长度）开始，每收到一个a c k，c w n d增加一个MSS，指数级增长，直到慢启动阈值ssthresh，65535字节。
 
-拥塞避免。当cwnd大于等于ssthresh，cwnd线性增长。
+拥塞避免。当c w n d大于等于ssthresh，c w n d线性增长。
 
-快速恢复。发生三次重复ack，将ssthresh设为cwnd的一半，将cwnd设为ssthresh加3。
+快速恢复。发生三次重复a c k，将ssthresh设为c w n d的一半，将c w n d设为ssthresh加3。
 
 ## raft如何保证一致性（腾讯）page 1
 强领导者模型。raft全集群同时最多只有一个leader，所有写请求必须通过leader处理。leader负责接收客户端命令，追加日志，复制日志和驱动状态机提交，Follower只是被动接收。
@@ -4388,6 +4556,9 @@ BeanPostProcessor。调用postProcessAfterInitialization，做最后的包装。
 Bean 作用域及创建/销毁时机。1.Singleton作用域。容器启动时初始化，容器关闭时销毁。2.prototype作用域。每次getbean或注入时初始化，gc进行销毁。3.Request作用域。第一次在该请求内访问bean时初始化，请求结束销毁。4.session作用域，第一次在该回话内访问bean时初始化，会话失效后销毁。5.global session，第一次在该回话内访问bean时初始化，全局会话失效时销毁。
 
 
+## Spring bean的作用域有哪些？page 1
+Bean 作用域及创建/销毁时机。1.Singleton作用域。容器启动时初始化，容器关闭时销毁。2.prototype作用域。每次getbean或注入时初始化，gc进行销毁。3.Request作用域。第一次在该请求内访问bean时初始化，请求结束销毁。4.session作用域，第一次在该回话内访问bean时初始化，会话失效后销毁。5.global session，第一次在该回话内访问bean时初始化，全局会话失效时销毁。
+
 
 <!-- 构造函数；set属性；setBeanName；setBeanFactory；postProcessBefore；setProperties；init方法；postProcessAfter；destroy。 -->
 
@@ -4417,6 +4588,13 @@ Bean使用中：工作，只有对社会没有用的人才放假。。
 
 10.自定义destroy方法:睡了，别想叫醒我 -->
 
+## 怎么搭建spring Boot starter（百度）
+新建maven模块，定义group id和artifact id。
+
+在pom中声明SpringBoot自动配置依赖，并指明父项目是SpringBoot starter。
+
+可以创建自动配置类，注入bean，本地测试后，用maven clean install命令将jar包发布至私服。
+
 ## 什么情况下Bean对象会注入失败（腾讯）
 多个候选bean歧义。
 
@@ -4440,9 +4618,6 @@ AOP发生在postProcessAfterInit方法，这个方法会生成代理对象。
 <!-- 代理的实现发生在 Spring容器初始化阶段 之后。当Spring容器启动时，会扫描所有的bean，并根据配置决定是否要为这些bean创建代理对象。如果一个bean需要被aop增强，spring会在bean初始化完成后，为他创建一个代理对象。
  -->
 
-## AOP的底层实现？（58同城，满帮，网易）page 1
-AOP底层依赖于动态代理。1.jdk动态代理，用Proxy类newProxyInstance生成代理对象，代理对象在方法调用时进入InvocationHandler invoke方法执行增强逻辑和目标方法。缺点必须目标对象实现接口，且只能对接口方法代理。2.cglib动态代理，操作字节码，运行时生成目标类子类。代理子类重写目标类方法，调用增强逻辑，再通过MethodProxy invokeSuper调用父类方法。缺点由于采用继承方式，目标方法如被声明为final则无法被代理。
-
 
 
 <!-- AOP底层实现依赖于代理模式和反射机制。
@@ -4456,6 +4631,34 @@ CGLIB动态代理不要求目标类实现接口，通过生成目标类的子类
 反射机制：通过reflect包中的类和方法实现，AOP可以在运行时获取目标类信息，动态调用类的方法。
 
 AspectJ AOP。 -->
+
+
+## 讲讲Spring AOP原理（淘天）page 1
+容器启动阶段，注册后置处理器。容器扫描到aspect注解的类，解析pointcut、before、after，为每个切面生成advisor。创建业务bean后，postprocessAfterInitialization方法检查是否匹配pointcut，如匹配则为其生成代理，a o p发生在这个方法中。
+
+方法调用阶段，客户端执行代理对象的invoke方法，传入method，通知链执行，执行Advice的invoke方法，调用目标方法，返回。
+
+
+## AOP的底层实现？（58同城，满帮，网易）page 1
+AOP底层依赖于动态代理。1.jdk动态代理，用Proxy类newProxyInstance生成代理对象，代理对象在方法调用时进入InvocationHandler invoke方法执行增强逻辑和目标方法。缺点必须目标对象实现接口，且只能对接口方法代理。2.cglib动态代理，操作字节码，运行时生成目标类子类。代理子类重写目标类方法，调用增强逻辑，再通过MethodProxy invokeSuper调用父类方法。缺点由于采用继承方式，目标方法如被声明为final则无法被代理。
+
+## SpringBoot源码，启动过程讲一下（SpringBoot的启动流程）（字节，阿里巴巴，百度）page 1
+入口方法。main方法执行springApplication.run。
+
+springApplication初始化，用springFactoriesLoader扫描meta-inf/spring.factories加载springApplicationRun
+Listener、ApplicationContextInitializer。
+
+事件发布。SpringBoot发布ApplicationStartingEvent，可以用SpringApplicationRunListener#starting方法拦截这个事件并执行初始化逻辑。
+
+环境准备，创建ApplicationContext前，springApplication准备environment，根据web环境探测算法选择ApplicationContext类型。
+
+bean定义加载。enableAutoConfiguration注解用AutoConfigurationImportSelector自动导入符合条件的自动配置类。
+
+ApplicationContext刷新。ConfigurableApplicationContext.refresh方法执行BeanFactoryPostProcessor、BeanPostProcessor回调，实例化所有单例bean，完成依赖注入。刷新完成后，SpringBoot发布ApplicationPreparedEvent，ApplicationStartedEvent，上下文和自动配置已生效。
+
+web容器启动。
+
+完全启动。容器完全刷新且执行完bean初始化后，SpringBoot发布ApplicationReadyEvent。
 
 
 ## 结合spring讲讲aop一系列过程（美团）
@@ -4480,11 +4683,6 @@ aop执行顺序问题。多切面之间冲突，执行顺序导致切面逻辑�
 
 ## 同一个类中的方法互相调用时，调用的是原始方法而非代理方法 如何解决？（美团）
 把另一个方法放到新的bean中，或者用AOPContext.currentProxy()方法。
-
-## 讲讲Spring AOP原理（淘天）page 1
-容器启动阶段，注册后置处理器。容器扫描到aspect注解的类，解析pointcut、before、after，为每个切面生成advisor。创建业务bean后，postprocessAfterInitialization方法检查是否匹配pointcut，如匹配则为其生成代理。
-
-方法调用阶段，客户端执行代理对象的invoke方法，传入method，通知链执行，执行Advice的invoke方法，调用目标方法，返回。
 
 ## 反射是如何实现的（淘天）page 1
 方法的反射调用即Method invoke，的实现如下。方法的调用是由MethodAccessor接口的invoke方法实现的。MethodAccessor接口有三种实现，本地实现，委派实现和动态实现，本地实现是用Method实例所指向的地址，准备好传入的参数，调用进入目标方法。动态实现是直接生成字节码直接运行。委派层是一个中间层，默认前15次调用是本地实现，第16次会触发动态实现。
@@ -4745,13 +4943,14 @@ factoryBean适用于需要复杂初始化逻辑的场景，比如创建代理对
 事务传播：如果设置了不合适的事务传播行为，如NOT_SUPPORTED会导致事务失效。
 
 ## Spring事务的原理是什么？（得物，58同城）page 154
-基于AOP代理模式实现的。
+基于a o p代理模式实现的。
 
-AOP代理与事务切面：Spring在启用事务管理后，会为目标对象创建代理。
+a o p代理与事务切面：Spring在启用事务管理后，会为目标对象创建代理。
 
 事务属性解析：当一个被事务切面拦截的方法被调用时，代理通过TrasactionAttributeSource解析该方法上的事务属性，如传播行为、隔离级别。
 
 事务拦截器：解析完事务后，TrasactionInterceptor会根据这些属性调用具体的事务管理器（实现了PlatformTrasactionManager接口，如DataSourceTrasactionManager），在调用方法前开启事务。
+
 
 
 
@@ -4783,16 +4982,16 @@ springcloud是基于springboot的微服务框架，他提供了一系列工具�
 参考：https://blog.csdn.net/w605283073/article/details/89221522
 
 ## SpringBoot的自动配置如何实现的？什么是SpringBoot自动装配？（Spring Boot中自动装配机制的原理）（腾讯，恒生）page 116
-在Spring Boot应用里面，只需要在启动类加上@SpringBootApplication注解就可以实现自动装配。
-@SpringBootApplication是一个复合注解，真正实现自动装配的注解是@EnableAutoConfiguration。
+在Spring Boot应用里面，只需要在启动类加上SpringBootApplication注解就可以实现自动装配。
+SpringBootApplication是一个复合注解，真正实现自动装配的注解是EnableAutoConfiguration。
 自动装配的实现主要依靠三个核心关键技术。
-1. 引入Starter启动依赖组件的时候，这个组件里面必须要包含@Configuration配置类，在这个配置类里面通过@Bean注解声明需要装配到IOC容器的Bean对象。
+1. 引入Starter启动依赖组件的时候，这个组件里面必须要包含Configuration配置类，在这个配置类里面通过Bean注解声明需要装配到IOC容器的Bean对象。
 2. 这个配置类是放在第三方的jar包里面，然后通过SpringBoot中的约定优于配置思想，把这个配置类的全路径放在 classpath:/META-INF/spring.factories 文件中。这样SpringBoot就可以知道第三方jar包里面的配置类的位置，这个步骤主要是用到了Spring里面的SpringFactoriesLoader来完成的。
 3. SpringBoot拿到所第三方jar包里面声明的配置类以后，再通过Spring提供的 ImportSelector 接口，实现对这些配置类的动态加载。
 
 
 在我看来，SpringBoot是约定优于配置这一理念下的产物，所以在很多的地方，都会看到这类的思想。它的出现，让开发人员更加聚焦在了业务代码的编写上，而不需要去关心和业务无关的配置。
-其实，自动装配的思想，在SpringFramework3.x版本里面的@Enable注解，就有了实现的雏形。@Enable注解是模块驱动的意思，我们只需要增加某个@Enable注解，就自动打开某个功能，而不需要针对这个功能去做Bean的配置，@Enable底层也是帮我们去自动完成这个模块相关Bean的注入。
+其实，自动装配的思想，在SpringFramework3.x版本里面的Enable注解，就有了实现的雏形。Enable注解是模块驱动的意思，我们只需要增加某个Enable注解，就自动打开某个功能，而不需要针对这个功能去做Bean的配置，Enable底层也是帮我们去自动完成这个模块相关Bean的注入。
 以上，就是我对Spring Boot自动装配机制的理解。
 
 
@@ -4852,23 +5051,7 @@ canal不会原子的把多表事务打包成一个消息，也不保证跨topic�
 
 声明式校验。@NotNull，NotEmpty，NotBlank注解，用反射实现，传入对象为空抛异常。
 
-## SpringBoot源码，启动过程讲一下（字节，阿里巴巴，百度）page 1
-入口方法。main方法执行springApplication.run。
 
-springApplication初始化，用springFactoriesLoader扫描meta-inf/spring.factories加载springApplicationRun
-Listener、ApplicationContextInitializer。
-
-事件发布。SpringBoot发布ApplicationStartingEvent，可以用SpringApplicationRunListener#starting方法拦截这个事件并执行初始化逻辑。
-
-环境准备，创建ApplicationContext前，springApplication准备environment，根据web环境探测算法选择ApplicationContext类型。
-
-bean定义加载。enableAutoConfiguration注解用AutoCOnfigurationImportSelector自动导入符合条件的自动配置类。
-
-ApplicationContext刷新。COnfigurableApplicationContext.refresh方法执行BeanFactoryPostProcessor、BeanPostProcessor回调，实例化所有单例bean，完成依赖注入。刷新完成后，SpringBoot发布ApplicationPreparedEvent，ApplicationStartedEvent，上下文和自动配置已生效。
-
-web容器启动。
-
-完全启动。容器完全刷新且执行完bean初始化后，SpringBoot发布ApplicationReadyEvent。
 
 ## Spring cache 底层原理，基于什么实现的？（美团）
 Spring cache基于注解，cacheable，cacheput配合AOP自动实现缓存。在配置类上添加enablecaching注解，Spring就会用Import Selector引入缓存配置类并启动AOP代理，具体流程如下：1.注册代理处理器，实例化AbstractAdvisorAutoProxyCreator，他在bean创建时根据切面生成代理。2.解析缓存注解，调用SpringCacheAnnotationParser解析注解，处理Cacheable，CacheEvit，Cacheput注解，生成CacheableOperation，CacheEvictOperation等对象。3.缓存切面织入，把CacheOperation织入切面。4.CacheInterceptor拦截执行，调用CacheAspectSupport execute方法执行缓存逻辑。
@@ -4943,6 +5126,72 @@ singleton（单例），prototype（原型），request（每个 HTTP 请求创�
 ## 单例Bean的线程安全问题了解吗？
 
 主要源于资源竞争，常见的解决办法包括避免使用可变的成员变量，或者使用 ThreadLocal 来保证线程局部变量的安全。大多数无状态的 Bean（如 Dao、Service）本身就是线程安全的。
+
+## 手写单例模式（美团）page 1
+饿汉式。用静态常量。
+
+懒汉式。用synchronized同步。
+
+双重校验锁DCL。
+
+静态内部类。静态内部类持有唯一实例，且只在第一次调用getInstance方法时才会加载。在SingletonHolder类被加载时，并不会触发内部Holder类的加载。jvm类加载的流程，加载、连接、初始化。在SingletonHolder类的clinit方法中，并不包含初始化INSTANCE的逻辑，而Holder类的clinit方法中包含INSTANCE被实例化这一条赋值语句，只有当外部线程首次触发getInstance方法，jvm才会加载并执行Holder的clinit，完成实例创建。
+
+枚举单例。
+
+```java
+
+public class SingletonEager{
+    private static final SingletonEager INSTANCE=new SingletonEager();
+    private SingletonEager(){}
+    public static SingletonEager getInstance(){
+        return INSTANCE;
+    }
+}
+
+public class SingletonLazy{
+    private static SingletonLazy instance;
+    private SingletonLazy(){}
+    public static synchronized SingletonLazy getInstance(){
+        if(instance==null){
+            instance=new SingletonLazy();
+        }
+        return instance;
+    }
+}
+
+public class SingletonDCL{
+    private static volatile SingletonDCL instance;
+    private SingletonDCL(){}
+    public static SingletonDCL getInstance(){
+        if(instance==null){
+            synchronized(SingletonDCL.class){
+                if(instance==null){
+                    instance=new SingletonDCL();
+                }
+            }
+        }
+        return instance;
+    }
+}
+
+public class SinletonHolder{
+    private SinletonHolder(){}
+    private static class Holder{
+        private static final SinletonHolder INSTANCE=new SinletonHolder();
+    }
+    public static SinletonHolder getInstance(){
+        return Holder.INSTANCE;
+    }
+}
+
+public enum SinletonEnum{
+    INSTANCE;
+    public void someMethod(){
+        
+    }
+}
+
+```
 
 ## Spring AOP和ApectJ AOP有什么区别？
 
